@@ -4,6 +4,8 @@ AWS_SDK_CPP_VER_MAJOR="1"
 AWS_SDK_CPP_VER_MINOR="4"
 AWS_SDK_CPP_VER_PATCH="57"
 
+VER=`head -1 CHANGELOG.txt`
+
 docker build \
 	-f Dockerfile.sasl \
 	--tag k3:sasl \
@@ -17,5 +19,10 @@ docker build \
 	--build-arg ENABLE_UNITY_BUILD="ON" \
 	--tag k3:dev \
 	. \
-&& docker build -f Dockerfile.rel --tag k3:rel .
+&& docker build -f Dockerfile.rel --tag k3:rel-${VER} . \
+&& echo "docker tag k3:rel-${VER} andykirkham/kafka-k3:${VER}" \
+&& echo "docker push andykirkham/kafka-k3:${VER}" \
+&& echo "docker tag k3:rel-${VER} andykirkham/kafka-k3:latest" \
+&& echo "docker push andykirkham/kafka-k3:latest" 
+
 

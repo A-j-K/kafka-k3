@@ -1,0 +1,6 @@
+1.1
+-- Add CA Certs to release
+
+1.0
+-- First release
+

@@ -3,7 +3,7 @@
 
 K3Aws::K3Aws() 
 {
-	_options.loggingOptions.logLevel = Aws::Utils::Logging::LogLevel::Trace;
+	_options.loggingOptions.logLevel = Aws::Utils::Logging::LogLevel::Info;
 	Aws::InitAPI(_options);
 }
 
