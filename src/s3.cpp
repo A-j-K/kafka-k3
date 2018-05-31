@@ -168,22 +168,23 @@ S3::put(const char *payload, size_t len,
 	std::map<std::string, std::string> & metadata)
 {
 	bool rval = false;
-	Aws::String sload;
 	PutObjectRequest putObjectRequest;
-	std::map<std::string, std::string>::iterator metadata_itor = metadata.begin();
+
+	putObjectRequest.WithKey(s3key);
+	putObjectRequest.WithBucket(getBucket());
 
 	auto requestStream = _encrypted ?
 		Aws::MakeShared<Aws::StringStream>("s3Encryption") :
 		Aws::MakeShared<Aws::StringStream>("s3");
-	sload.append(payload, len);
-	*requestStream << sload;
-	putObjectRequest.WithBucket(getBucket());
+	requestStream->write(payload, len);
+	putObjectRequest.SetBody(requestStream);
+
+	auto metadata_itor = metadata.begin();
 	while(metadata_itor != metadata.end()) {
 		putObjectRequest.AddMetadata(metadata_itor->first, metadata_itor->second);
 		metadata_itor++;
 	}
-	putObjectRequest.WithKey(s3key);
-	putObjectRequest.SetBody(requestStream);
+
 	if(_ps3client) {
 		auto putObjectOutcome = _ps3client->PutObject(putObjectRequest);
 		if((rval = putObjectOutcome.IsSuccess()) == false) {
