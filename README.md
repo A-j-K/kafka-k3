@@ -20,6 +20,9 @@ Here's an example:-
 		},
                 "topics": [
                 ],
+		"exclude_topics": [
+			"foobarbaz"
+		],
                 "default_global_conf": {
                         "group.id": "mytestk3group",
                         "metadata.broker.list": "kafka:443",
@@ -36,6 +39,7 @@ Here's an example:-
 
 Most of this should be self explanitory. If you leave ```kafka.topics``` string array empty ```k3``` will attempt to connect to all topics in the cluster (except ```__consumer_group_n``` internal topics).
 
+
 ```aws.access_key```: If this is __not__ supplied then the default credential provider will be used in an attempt to discover an IAM role based on the EC2 launch profile.
 
 ```aws.kms_arn```: S3 buckets can have encryption at rest. 
@@ -45,6 +49,8 @@ Place the AWS KMS ARN here if you want to use the AWS SDK S3 encryption client.
 If the config item is missing no encryption is used. If you specify an AWS KMS ARN make sure the IAM role used at ```aws.access_key``` has permissions to use the KMS key or PUT will fail with access denied.
 
 ```general.batchsize``` is how many events to store in each AWS S3 PUT operation.
+
+```kafka.exclude_topics```: Array of strings of topics to exclude from dumping.
 
 ```kafka.default_global_conf``` are key values pairs that get passed directly to the RdKafka lower level library. 
 
