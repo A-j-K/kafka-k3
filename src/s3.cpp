@@ -27,6 +27,7 @@ S3::S3() :
 {
 	const char *p;
 	_region = "eu-west-1"; // default region
+	_bucket = "k3dump";    // default bucket name
 	if((p = std::getenv("AWS_REGION")) != NULL) _region = p;
 	if((p = std::getenv("AWS_BUCKET")) != NULL) _bucket = p;
 	if((p = std::getenv("AWS_KMS_ARN")) != NULL) _kms_arn = p;
@@ -59,20 +60,34 @@ S3::~S3()
 bool 
 S3::prepare()
 {
-	_pcreds = new Aws::Auth::AWSCredentials(getAccessKey(), getSecretKey());
 	_pconfig = new Aws::Client::ClientConfiguration;
 	_pconfig->region = getRegion();
 
 	if(getKmsArn().size() == 0) {
-		_ps3client = new S3Client(*_pcreds, *_pconfig);
+		if(getAccessKey().size() > 0) {
+			_pcreds = new Aws::Auth::AWSCredentials(getAccessKey(), getSecretKey());
+			_ps3client = new S3Client(*_pcreds, *_pconfig);
+		}
+		else {
+			auto pcreds = Aws::MakeShared<Aws::Auth::DefaultAWSCredentialsProviderChain>("");
+			_ps3client = new S3Client(pcreds, *_pconfig);
+		}
 	}
 	else {
 		auto kmsMaterials = Aws::MakeShared<KMSEncryptionMaterials>("", getKmsArn());
 		CryptoConfiguration crypto_configuration(
 			StorageMethod::METADATA,
 			CryptoMode::STRICT_AUTHENTICATED_ENCRYPTION);
-		_ps3client = new S3EncryptionClient(kmsMaterials,
-			crypto_configuration, *_pcreds, *_pconfig);		
+		if(getAccessKey().size() > 0) {	
+			_pcreds = new Aws::Auth::AWSCredentials(getAccessKey(), getSecretKey());
+			_ps3client = new S3EncryptionClient(kmsMaterials,
+				crypto_configuration, *_pcreds, *_pconfig);		
+		}
+		else {
+			auto pcreds = Aws::MakeShared<Aws::Auth::DefaultAWSCredentialsProviderChain>("");
+			_ps3client = new S3EncryptionClient(kmsMaterials,
+				crypto_configuration, pcreds, *_pconfig);
+		}
 		_encrypted = true;
 	}
 

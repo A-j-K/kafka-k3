@@ -36,6 +36,8 @@ Here's an example:-
 
 Most of this should be self explanitory. If you leave ```kafka.topics``` string array empty ```k3``` will attempt to connect to all topics in the cluster (except ```__consumer_group_n``` internal topics).
 
+```aws.access_key```: If this is __not__ supplied then the default credential provider will be used in an attempt to discover an IAM role based on the EC2 launch profile.
+
 ```aws.kms_arn```: S3 buckets can have encryption at rest. 
 
 Place the AWS KMS ARN here if you want to use the AWS SDK S3 encryption client. 
