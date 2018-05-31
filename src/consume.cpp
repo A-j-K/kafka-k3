@@ -202,23 +202,6 @@ Consume::setup(json_t *pjson)
 	}
 }
 
-void
-Consume::run_once()
-{
-	std::string errstr;
-	RdKafka::Conf::ConfResult result;
-	RdKafka::Message *pmsg = 0;
-	if((pmsg = _pconsumer->consume(_consume_wait_time)) != NULL) {
-		if(pmsg->err() == RdKafka::ERR_NO_ERROR) {
-			if(_ps3) {
-				_ps3->put(*pmsg);
-			}
-			_pconsumer->commitAsync(pmsg);
-		}
-		delete pmsg;
-	}
-}
-
 size_t 
 Consume::messagesSize(MessageVector &messages)
 {

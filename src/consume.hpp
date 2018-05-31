@@ -92,7 +92,6 @@ public:
 	}
 
 	virtual void setup(json_t*);
-	virtual void run_once();
 	virtual void run(bool *);
 
 protected:

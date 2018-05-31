@@ -27,7 +27,7 @@ protected:
 	bool	_delete;
 	bool	_encrypted;
 
-	std::vector<MessageWrapper::ShPtr>	_messages;
+	//std::vector<MessageWrapper::ShPtr>	_messages;
 
 	std::ostream	*_plog;
 
@@ -55,10 +55,6 @@ public:
 	virtual bool prepare();
 
 	virtual void setup(json_t*);
-
-	virtual bool put(RdKafka::Message&, const char *pkey = NULL);
-
-	virtual bool put(MessageWrapper::ShPtr&);
 
 	virtual bool put(const char *payload, size_t len,  
 		std::string & s3key,

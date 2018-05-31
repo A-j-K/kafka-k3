@@ -92,68 +92,6 @@ S3::setup(json_t *pjson)
 	prepare();
 }
 
-bool 
-S3::put(RdKafka::Message &inmsg, const char *pkey)
-{
-	bool rval = false;
-	Aws::String msg_key;
-	Aws::StringStream offset;
-	Aws::StringStream partition;
-	Aws::StringStream timestamp;
-	auto requestStream = getKmsArn().size() == 0 ?
-		Aws::MakeShared<Aws::StringStream>("s3") :
-		Aws::MakeShared<Aws::StringStream>("s3Encryption");
-	*requestStream << inmsg.payload();
-	msg_key.append((char*)inmsg.key_pointer(), (size_t)inmsg.key_len());
-	offset << inmsg.offset();
-	partition << inmsg.partition();
-	timestamp << inmsg.timestamp().timestamp;
-	PutObjectRequest putObjectRequest;
-	putObjectRequest.WithBucket(getBucket())
-		.AddMetadata("X-Kafka-Key", msg_key)
-		.AddMetadata("X-Kafka-Topic", inmsg.topic_name())
-		.AddMetadata("X-Kafka-Partition", partition.str())
-		.AddMetadata("X-Kafka-Offset", offset.str())
-		.AddMetadata("X-Kafka-Timmestamp", timestamp.str())
-		.AddMetadata("X-Encrypted", _encrypted ? getKmsArn() : "0")
-		.SetBody(requestStream);
-	if(!pkey) {
-		char buffer[64];
-		Aws::StringStream key;
-		time_t t  = (time_t)(inmsg.timestamp().timestamp / 1000);
-		auto   tm = localtime(&t);
-		memset(buffer, 0, sizeof(buffer));
-		strftime(buffer, sizeof(buffer), "%Y-%m-%d-%H-%M", tm);
-		key << inmsg.topic_name() << "/"
-			<< buffer << "/" 
-			<< partition.str() << "-"
-			<< msg_key << "-"
-			<< offset.str() << "-" 
-			<< inmsg.timestamp().timestamp;
-		putObjectRequest.WithKey(key.str());
-	}
-	else {
-		putObjectRequest.WithKey(pkey);
-	}
-	auto putObjectOutcome = _ps3client->PutObject(putObjectRequest);
-	if((rval = putObjectOutcome.IsSuccess()) == false) {
-		*_plog << "Error while putting Object " 
-                << putObjectOutcome.GetError().GetExceptionName() 
-                << " " 
-                << putObjectOutcome.GetError().GetMessage() 
-                << std::endl;
-	}
-	return rval;
-}
-
-bool 
-S3::put(MessageWrapper::ShPtr & insp)
-{
-	_messages.push_back(insp);
-
-	return true;
-}
-
 bool
 S3::put(std::shared_ptr<char> &insp, size_t len, 
 	std::string & s3key,
