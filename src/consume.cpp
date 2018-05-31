@@ -132,6 +132,13 @@ Consume::setup(json_t *pjson)
 	if((s = std::getenv("KAFKA_PASS")) != NULL) {
 		_pconf->set("sasl.password", std::string(s), errstr);
 	}
+	if((s = std::getenv("KAFKA_BROKERS")) != NULL) {
+		_pconf->set("metadata.broker.list", std::string(s), errstr);
+	}
+	if((s = std::getenv("KAFKA_MESSAGE_BATCHSIZE")) != NULL) {
+		int i = atoi(s);
+		setMessageBundleLimit(i);
+	}
 
 	p = json_object_get(pjson, "default_topic_conf");
 	if(p && json_is_object(p)) {

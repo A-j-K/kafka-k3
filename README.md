@@ -56,6 +56,25 @@ If the config item is missing no encryption is used. If you specify an AWS KMS A
 
 See https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md for available confuration options.
 
+# Enviroment Vars
+
+Config can be done via ENV VARs but is limited to just being key/val pairs. The follow ENV vars are available and __override__ ```/etc/k3conf.json```.
+
+```
+AWS_REGION
+AWS_BUCKET
+AWS_KMS_ARN
+AWS_ACCESS_KEY
+AWS_SECRET_KEY
+KAFKA_GROUP_ID
+KAFKA_SECURITY_PROTOCOL
+KAFKA_SASL_MECHANISMS
+KAFKA_USER
+KAFKA_PASS
+KAFKA_BROKERS
+KAFKA_MESSAGE_BATCHSIZE
+```
+
 # Docker
 
 A quick way to get going is to use a Docker Container which can be found here:-

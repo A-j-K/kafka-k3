@@ -1,3 +1,7 @@
+1.5
+-- Allow ENV var to config broker list and batchsize
+-- README.md updates for above
+
 1.4
 -- 12 Factor App, log to console (stdout)
 -- Tidy up some pointers to use shared pointers instead
