@@ -50,7 +50,7 @@ If the config item is missing no encryption is used. If you specify an AWS KMS A
 
 ```general.batchsize``` is how many events to store in each AWS S3 PUT operation.
 
-```kafka.exclude_topics```: Array of strings of topics to exclude from dumping.
+```kafka.exclude_topics```: Array of strings of topics to exclude from dumping. Wildcards are supported, for example ```test*```.
 
 ```kafka.default_global_conf``` are key values pairs that get passed directly to the RdKafka lower level library. 
 
