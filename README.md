@@ -56,4 +56,15 @@ If the config item is missing no encryption is used. If you specify an AWS KMS A
 
 See https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md for available confuration options.
 
+# Docker
+
+A quick way to get going is to use a Docker Container which can be found here:-
+
+https://hub.docker.com/r/andykirkham/kafka-k3/
+
+Create a JSON config file on the host (or in K8s use a secret) and mount it into the container
+
+```
+docker run -v /etc/k3conf.json:/etc/k3conf.json -d andykirkham/kafka-k3:latest
+```
 
