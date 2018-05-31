@@ -1,0 +1,44 @@
+
+FROM alpine:3.7
+
+ENV DEPS_DEV_TOOLS \
+	bash \
+	tar \
+	openssh \
+	unzip \
+	file \
+	gdb 
+
+ENV DEPS_BUILD_TOOLS \
+	build-base \
+	wget \
+	libssh2-dev 
+
+ENV DEPS \
+	openssl-dev \
+	libcrypto1.0 \
+	libxml2 \
+	libssh2 \
+	ca-certificates 
+
+RUN	apk add --no-cache \
+		$DEPS $DEPS_DEV_TOOLS $DEPS_BUILD_TOOLS \
+	&& mkdir -p /tmp/build \
+	&& wget -q ftp://ftp.cyrusimap.org/cyrus-sasl/cyrus-sasl-2.1.27-rc8.tar.gz \
+	&& tar -zxf cyrus-sasl-2.1.27-rc8.tar.gz && rm -f cyrus-sasl-2.1.27-rc8.tar.gz \
+	&& cd cyrus-sasl-2.1.27 \
+	&& ./configure \
+		--enable-static \
+		--disable-anon \
+		--enable-cram \
+		--enable-digest \
+		--enable-login \
+		--enable-ntlm \
+		--disable-otp \
+		--enable-plain \
+		--with-gss_impl=heimdal \
+		--with-devrandom=/dev/urandom \
+		--without-ldap \
+		--with-saslauthd=/var/run/saslauthd \
+	&& make && make install VERBOSE=1 
+
