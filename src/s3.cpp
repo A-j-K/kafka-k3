@@ -121,24 +121,21 @@ S3::put(const char *payload, size_t len,
 	std::map<std::string, std::string> & metadata)
 {
 	bool rval = false;
-	PutObjectRequest putObjectRequest;
-
-	putObjectRequest.WithKey(s3key);
-	putObjectRequest.WithBucket(getBucket());
-
-	auto requestStream = _encrypted ?
-		Aws::MakeShared<Aws::StringStream>("s3Encryption") :
-		Aws::MakeShared<Aws::StringStream>("s3");
-	requestStream->write(payload, len);
-	putObjectRequest.SetBody(requestStream);
-
-	auto metadata_itor = metadata.begin();
-	while(metadata_itor != metadata.end()) {
-		putObjectRequest.AddMetadata(metadata_itor->first, metadata_itor->second);
-		metadata_itor++;
-	}
-
 	if(_ps3client) {
+		PutObjectRequest putObjectRequest;
+		putObjectRequest.WithKey(s3key);
+		putObjectRequest.WithBucket(getBucket());
+		auto requestStream = _encrypted ?
+			Aws::MakeShared<Aws::StringStream>("s3Encryption") :
+			Aws::MakeShared<Aws::StringStream>("s3");
+		requestStream->write(payload, len);
+		putObjectRequest.SetBody(requestStream);
+		for(auto metadata_itor = metadata.begin();
+			metadata_itor != metadata.end();
+			metadata_itor++)
+		{
+			putObjectRequest.AddMetadata(metadata_itor->first, metadata_itor->second);
+		}
 		auto putObjectOutcome = _ps3client->PutObject(putObjectRequest);
 		if((rval = putObjectOutcome.IsSuccess()) == false) {
 			*_plog << "Error while putting Object " 
