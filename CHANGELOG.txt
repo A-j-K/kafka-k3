@@ -1,3 +1,8 @@
+1.2
+-- Memory optimisation in S3 put
+-- Decouple S3 object from any RdKafka objects
+-- AWS Log tracing
+
 1.1
 -- Add CA Certs to release
 
