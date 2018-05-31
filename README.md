@@ -22,7 +22,7 @@ Here's an example:-
                 ],
                 "default_global_conf": {
                         "group.id": "mytestk3group",
-                        "metadata.broker.list": "msp-rmm-kafka-stage-1-0.swimsp.io:443",
+                        "metadata.broker.list": "kafka:443",
                         "sasl.mechanisms": "PLAIN",
                         "sasl.username": "<sasl-username-goes-here>",
                         "sasl.password": "<sasl-password-goes-here>",
