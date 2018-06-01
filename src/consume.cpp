@@ -50,12 +50,11 @@ Consume::topic_excluded(std::string & topic)
 void
 Consume::setup(json_t *pjson)
 {
-	json_t *p;
 	const char *s;
 	std::string errstr;
 	std::vector<std::string> topics;
 
-	p = json_object_get(pjson, "exclude_topics");
+	auto p = json_object_get(pjson, "exclude_topics");
 	if(p && json_is_array(p)) {
 		size_t index;
 		json_t *pval;	
@@ -64,7 +63,7 @@ Consume::setup(json_t *pjson)
 				_exclude_topics.push_back(std::string(json_string_value(pval)));
 			}
 			else if(json_is_object(pval)) {
-				json_t *pname = json_object_get(pval, "name");
+				auto pname = json_object_get(pval, "name");
 				if(pname) {
 					_exclude_topics.push_back(std::string(json_string_value(pname)));
 				}
@@ -84,7 +83,7 @@ Consume::setup(json_t *pjson)
 				}
 			}
 			else if(json_is_object(pval)) {
-				json_t *pname = json_object_get(pval, "name");
+				auto pname = json_object_get(pval, "name");
 				if(pname) {
 					std::string str_topic(json_string_value(pname));
 					if(!topic_excluded(str_topic)) {
@@ -163,19 +162,18 @@ Consume::setup(json_t *pjson)
 
 	if(topics.size() < 1) {
 		// Attempt auto discovery of topics.
-		RdKafka::ErrorCode result;
 		RdKafka::Metadata *pmetadata = NULL;
-		result = _pconsumer->metadata(true, NULL, &pmetadata, 10000);
+		auto result = _pconsumer->metadata(true, NULL, &pmetadata, 10000);
 		if(pmetadata != NULL && result == RdKafka::ErrorCode::ERR_NO_ERROR) {
 			const RdKafka::Metadata::TopicMetadataVector *ptopics = pmetadata->topics();
 			if(ptopics) {
 				std::string comp("__consumer_offsets");
-				size_t comp_size = comp.size();
+				auto comp_size = comp.size();
 				RdKafka::Metadata::TopicMetadataIterator itor = ptopics->begin();
 				while(itor != ptopics->end()) {
-					const RdKafka::TopicMetadata *ptopic = *itor;
-					std::string t = ptopic->topic();
-					std::string s = t.substr(0, comp_size);
+					auto ptopic = *itor;
+					auto t = ptopic->topic();
+					auto s = t.substr(0, comp_size);
 					if(s != comp && !topic_excluded(t)) {
 						topics.push_back(t);
 					}
@@ -192,7 +190,7 @@ Consume::setup(json_t *pjson)
 	}
 
 	if(topics.size() > 0) {
-		std::vector<std::string>::iterator itor = topics.begin();
+		auto itor = topics.begin();
 		*_plog << "Subscribing to topics:-" << std::endl;
 		while(itor != topics.end()) {
 			*_plog << "   " << *itor << std::endl;
@@ -308,7 +306,6 @@ Consume::stash_by_topic(const char *topic, MessageVector &messages)
 	if(messages.size() > 0) {
 		int64_t total_payload_size = messagesSize(messages);
 		if(total_payload_size > 0) {
-			MessageVector::iterator itor;
 			int index_counter = messages.size() - 1;
 			int64_t offset = 0;
 			int64_t total_header_size = sizeof(MessageHeader) * messages.size();
@@ -317,16 +314,15 @@ Consume::stash_by_topic(const char *topic, MessageVector &messages)
 			if(p && _ps3 != NULL) {
 				int64_t last_ts = 0;
 				std::string s3key;
-				std::map<std::string, std::string> metadata;
+				Utils::Metadata metadata;
 				memset((void*)p, 0, (total_size + 1) * 2);
-				for(itor = messages.begin(); itor != messages.end(); itor++) {
+				for(auto itor = messages.begin(); itor != messages.end(); itor++) {
 					MessageHeader *phead = (MessageHeader*)(p + offset);
 					RdKafka::Message *pmsg = (*itor)->getMessage();
 					size_t payload_len = (*itor)->getMessage()->len();
 					const char *payload = (const char*)(*itor)->getMessage()->payload();
 					phead->set(pmsg, index_counter--,
-						messageChecksum(payload, payload_len)
-					);
+						messageChecksum(payload, payload_len));
 					char *body = (char*)(p + sizeof(MessageHeader) + offset);
 					memcpy(body, payload, payload_len);
 					last_ts = pmsg->timestamp().timestamp;
@@ -334,24 +330,22 @@ Consume::stash_by_topic(const char *topic, MessageVector &messages)
 				}
 				{
 					char buffer[256];
-					std::stringstream oss, nss;
-					time_t t  = (time_t)(last_ts / 1000);
-					auto   tm = localtime(&t);
+					auto t  = (time_t)(last_ts / 1000);
+					auto tm = localtime(&t);
 					memset(buffer, 0, sizeof(buffer));
 					strftime(buffer, sizeof(buffer), "%Y-%m-%d-%H-%M-%S", tm);
 					unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-					std::minstd_rand0 generator (seed);
-					oss << topic << "/" << buffer 
+					std::minstd_rand0 generator(seed);
+					std::string key(stringbuilder()
+						<< topic << "/" << buffer
 						<< "." << seed
-						<< "-rand" << generator();
-					std::string key(oss.str());
-					nss << messages.size();
-					metadata["x-numofmsgs"] = nss.str();
+						<< "-rand" << generator());
+					metadata["x-numofmsgs"] = stringbuilder() << messages.size();
 					_ps3->put(p, total_size, key, metadata);
 				}
 			}
 			else {
-				*_plog << "Failed to create RAM image, " << total_size << "bytes not available" << std::endl;
+				*_plog << "Failed to create RAM image, " << total_size << " bytes not available" << std::endl;
 			}
 			if(p) delete [] p;
 		}

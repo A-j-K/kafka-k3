@@ -16,6 +16,7 @@ strcmp(const char *wild, const char *string);
 bool
 strcmp(const std::string &wild, const std::string &string);
 
+typedef std::map<std::string, std::string> Metadata;
 
 }; // namespace Utils
 

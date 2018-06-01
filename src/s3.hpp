@@ -16,31 +16,32 @@ namespace K3 {
 class S3
 {
 protected:
-	Aws::Auth::AWSCredentials		*_pcreds;
-	Aws::Client::ClientConfiguration	*_pconfig;
-	Aws::S3::S3Client			*_ps3client;
+	typedef std::shared_ptr<Aws::S3::S3Client> ClientShPtr;
+	typedef std::shared_ptr<Aws::StringStream> StreamShPtr;
 
-	Aws::String			_access_key;
-	Aws::String			_secret_key;
-	Aws::String			_bucket;
-	Aws::String			_region;
-	Aws::String			_kms_arn;
+	ClientShPtr	_sp3client;
+
+	Aws::String	_access_key;
+	Aws::String	_secret_key;
+	Aws::String	_bucket;
+	Aws::String	_region;
+	Aws::String	_kms_arn;
 	
-	bool	_delete;
 	bool	_encrypted;
 
-	//std::vector<MessageWrapper::ShPtr>	_messages;
+	virtual ClientShPtr
+	createS3Client(const std::string &);
 
-	std::ostream	*_plog;
+	virtual ClientShPtr
+	createS3ClientEncrypted(const std::string &);
+
 
 public:
 
 	S3();
 	virtual ~S3();
 
-	S3(Aws::Auth::AWSCredentials*,
-		Aws::Client::ClientConfiguration*,
-		Aws::S3::S3Client*);
+	S3(ClientShPtr);
 
 	virtual S3& setRegion(const Aws::String& s)    { _region     = s; return *this; }
 	virtual S3& setBucket(const Aws::String& s)    { _bucket     = s; return *this; }
@@ -48,23 +49,17 @@ public:
 	virtual S3& setAccessKey(const Aws::String& s) { _access_key = s; return *this; }
 	virtual S3& setSecretKey(const Aws::String& s) { _secret_key = s; return *this; }
 
-	virtual Aws::String getRegion()    { return _region;     }
-	virtual Aws::String getBucket()    { return _bucket;     }
-	virtual Aws::String getKmsArn()    { return _kms_arn;    }
-	virtual Aws::String getAccessKey() { return _access_key; }
-	virtual Aws::String getSecretKey() { return _secret_key; }
-
-	virtual bool prepare();
+	virtual const Aws::String getRegion()&    { return _region;     }
+	virtual const Aws::String getBucket()&    { return _bucket;     }
+	virtual const Aws::String getKmsArn()&    { return _kms_arn;    }
+	virtual const Aws::String getAccessKey()& { return _access_key; }
+	virtual const Aws::String getSecretKey()& { return _secret_key; }
 
 	virtual void setup(json_t*);
 
 	virtual bool put(const char *payload, size_t len,  
-		std::string & s3key,
-	        std::map<std::string, std::string> & metadata);
-
-	virtual bool put(std::shared_ptr<char>&, size_t len,  
-		std::string & s3key,
-	        std::map<std::string, std::string> & metadata);
+		const std::string & s3key,
+	        const Utils::Metadata & metadata);
 };
 
 }; // namespace K3

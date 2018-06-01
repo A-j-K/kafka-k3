@@ -15,139 +15,156 @@
 namespace K3 {
 
 S3::S3() :
-	_pcreds(0),
-	_pconfig(0),
-	_ps3client(0),
-	_delete(true),
-	_encrypted(false),
-	_plog(&std::cout)
+	_encrypted(false)
 {
-	const char *p;
 	_region = "eu-west-1"; // default region
 	_bucket = "k3dump";    // default bucket name
-	if((p = std::getenv("AWS_REGION")) != NULL) _region = p;
-	if((p = std::getenv("AWS_BUCKET")) != NULL) _bucket = p;
-	if((p = std::getenv("AWS_KMS_ARN")) != NULL) _kms_arn = p;
-	if((p = std::getenv("AWS_ACCESS_KEY")) != NULL) _access_key = p;
-	if((p = std::getenv("AWS_SECRET_KEY")) != NULL) _secret_key = p;
+	AWS_LOGSTREAM_INFO("K3-ctor", "S3 starting up");
 }
 
-S3::S3(Aws::Auth::AWSCredentials *creds,
-	Aws::Client::ClientConfiguration *cc,
-	Aws::S3::S3Client *sc) :
-		_pcreds(creds),
-		_pconfig(cc),
-		_ps3client(sc),
-		_delete(false),
-		_encrypted(false),
-		_plog(&std::cout)
-{}
+S3::S3(ClientShPtr sc) :
+	_sp3client(sc),
+	_encrypted(false)
+{
+	AWS_LOGSTREAM_INFO("K3-ctor", "S3 starting up (test mode)");
+}
 
 
 S3::~S3()
 {
-	if(_delete) {
-		if(_ps3client) delete _ps3client;
-		if(_pconfig) delete _pconfig;
-		if(_pcreds) delete _pcreds;
-	}
+	AWS_LOGSTREAM_INFO("K3-dtor", "S3 shutting down");
 }
 
-
-bool 
-S3::prepare()
+S3::ClientShPtr
+S3::createS3Client(const std::string & in_access_key)
 {
-	_pconfig = new Aws::Client::ClientConfiguration;
-	_pconfig->region = getRegion();
-
-	if(getKmsArn().size() == 0) {
-		if(getAccessKey().size() > 0) {
-			_pcreds = new Aws::Auth::AWSCredentials(getAccessKey(), getSecretKey());
-			_ps3client = new Aws::S3::S3Client(*_pcreds, *_pconfig);
-		}
-		else {
-			auto pcreds = Aws::MakeShared<Aws::Auth::DefaultAWSCredentialsProviderChain>("");
-			_ps3client = new Aws::S3::S3Client(pcreds, *_pconfig);
-		}
+	ClientShPtr rval;
+	Aws::Client::ClientConfiguration config;
+	config.region = getRegion();
+	if(in_access_key.size() > 0) {
+		AWS_LOGSTREAM_INFO("K3-PREPARE", "Creating non-encrypted S3 client with user supplied creds");
+		Aws::Auth::AWSCredentials creds(getAccessKey(), getSecretKey());
+		rval = Aws::MakeShared<Aws::S3::S3Client>("k3-client-maunual-auth", creds, config);
 	}
 	else {
-		auto kmsMaterials = Aws::MakeShared<Aws::S3Encryption::Materials::KMSEncryptionMaterials>("", getKmsArn());
-		Aws::S3Encryption::CryptoConfiguration crypto_configuration(
-			Aws::S3Encryption::StorageMethod::METADATA,
-			Aws::S3Encryption::CryptoMode::STRICT_AUTHENTICATED_ENCRYPTION);
-		if(getAccessKey().size() > 0) {	
-			_pcreds = new Aws::Auth::AWSCredentials(getAccessKey(), getSecretKey());
-			_ps3client = new Aws::S3Encryption::S3EncryptionClient(kmsMaterials,
-				crypto_configuration, *_pcreds, *_pconfig);		
-		}
-		else {
-			auto pcreds = Aws::MakeShared<Aws::Auth::DefaultAWSCredentialsProviderChain>("");
-			_ps3client = new Aws::S3Encryption::S3EncryptionClient(kmsMaterials,
-				crypto_configuration, pcreds, *_pconfig);
-		}
-		_encrypted = true;
+		AWS_LOGSTREAM_INFO("K3-PREPARE", "Creating non-encrypted S3 client with default creds provider");
+		auto creds = Aws::MakeShared<Aws::Auth::DefaultAWSCredentialsProviderChain>("k3-creds-default-auth");
+		rval = Aws::MakeShared<Aws::S3::S3Client>("k3-client-default-auth", creds, config);
 	}
+	_encrypted = false;
+	return rval;
+}
 
-	return true;
+S3::ClientShPtr
+S3::createS3ClientEncrypted(const std::string & in_access_key)
+{
+	ClientShPtr rval;
+	Aws::Client::ClientConfiguration config;
+	auto materials = Aws::MakeShared<Aws::S3Encryption::Materials::KMSEncryptionMaterials>("k3-client-kms", getKmsArn());
+	config.region = getRegion();
+	Aws::S3Encryption::CryptoConfiguration crypto_configuration(
+		Aws::S3Encryption::StorageMethod::METADATA,
+		Aws::S3Encryption::CryptoMode::STRICT_AUTHENTICATED_ENCRYPTION);
+	if(in_access_key.size() > 0) {	
+		AWS_LOGSTREAM_INFO("K3-PREPARE", "Creating encrypted S3 client with user supplied creds");
+		Aws::Auth::AWSCredentials creds(getAccessKey(), getSecretKey());
+		rval = Aws::MakeShared<Aws::S3Encryption::S3EncryptionClient>("k3-client-manual-auth-enc",
+			materials, crypto_configuration, creds, config);
+		
+	}
+	else {
+		AWS_LOGSTREAM_INFO("K3-PREPARE", "Creating encrypted S3 client with default creds provider");
+		auto creds = Aws::MakeShared<Aws::Auth::DefaultAWSCredentialsProviderChain>("k3-creds-default-auth-enc");
+		rval = Aws::MakeShared<Aws::S3Encryption::S3EncryptionClient>("k3-client-default-auth-enc",
+			materials, crypto_configuration, creds, config);
+	}
+	_encrypted = true;
+	return rval;
 }
 
 void
 S3::setup(json_t *pjson)
 {
-	json_t *p;
-	if(!json_is_object(pjson)) return;
-	if((p = json_object_get(pjson, "region")) != NULL) _region = json_string_value(p);
-	if((p = json_object_get(pjson, "bucket")) != NULL) _bucket = json_string_value(p);
-	if((p = json_object_get(pjson, "kms_arn")) != NULL) _kms_arn = json_string_value(p);
-	if((p = json_object_get(pjson, "access_key")) != NULL) _access_key = json_string_value(p);
-	if((p = json_object_get(pjson, "secret_key")) != NULL) _secret_key = json_string_value(p);
-	prepare();
-}
+	const char *pe;
 
-bool
-S3::put(std::shared_ptr<char> &insp, size_t len, 
-	std::string & s3key,
-	std::map<std::string, std::string> & metadata)
-{
-	return put(insp.get(), len, s3key, metadata);
+	AWS_LOGSTREAM_INFO("K3-SETUP", "Configuring");
+
+	if(pjson && json_is_object(pjson)) { 
+		json_t *p;
+		if((p = json_object_get(pjson, "region")) != NULL)
+			_region = json_string_value(p);
+		if((p = json_object_get(pjson, "bucket")) != NULL)
+			_bucket = json_string_value(p);
+		if((p = json_object_get(pjson, "kms_arn")) != NULL)
+			_kms_arn = json_string_value(p);
+		if((p = json_object_get(pjson, "access_key")) != NULL)
+			_access_key = json_string_value(p);
+		if((p = json_object_get(pjson, "secret_key")) != NULL)
+			_secret_key = json_string_value(p);
+	}
+
+	// ENV vars can override
+	if((pe = std::getenv("AWS_REGION")) != NULL)
+		_region = pe;
+	if((pe = std::getenv("AWS_BUCKET")) != NULL)
+		_bucket = pe;
+	if((pe = std::getenv("AWS_KMS_ARN")) != NULL)
+		_kms_arn = pe;
+	if((pe = std::getenv("AWS_ACCESS_KEY")) != NULL)
+		_access_key = pe;
+	if((pe = std::getenv("AWS_SECRET_KEY")) != NULL)
+		_secret_key = pe;
+
+	AWS_LOGSTREAM_INFO("K3-SETUP", "Region: " << _region);
+	AWS_LOGSTREAM_INFO("K3-SETUP", "Bucket: " << _bucket);
+	AWS_LOGSTREAM_INFO("K3-SETUP", "Access: " << _access_key);
+	AWS_LOGSTREAM_INFO("K3-SETUP", "KmsArn: " << _kms_arn);
+
+	_sp3client = (getKmsArn().size() == 0) ?
+		createS3Client(getAccessKey()) :
+		createS3ClientEncrypted(getAccessKey());
 }
 
 bool 
 S3::put(const char *payload, size_t len, 
-	std::string & s3key,
-	std::map<std::string, std::string> & metadata)
+	const std::string & s3key,
+	const Utils::Metadata & metadata)
 {
 	bool rval = false;
-	if(_ps3client) {
-		Aws::S3::Model::PutObjectRequest putObjectRequest;
-		putObjectRequest.WithKey(s3key);
-		putObjectRequest.WithBucket(getBucket());
-		auto requestStream = _encrypted ?
-			Aws::MakeShared<Aws::StringStream>("s3Encryption") :
-			Aws::MakeShared<Aws::StringStream>("s3");
-		requestStream->write(payload, len);
-		putObjectRequest.SetBody(requestStream);
+	if(_sp3client.get()) {
+		Aws::S3::Model::PutObjectRequest request;
+		auto body = Aws::MakeShared<Aws::StringStream>(_encrypted ? "s3Encryption" : "s3");
+		body->write(payload, len);
+		request.WithKey(s3key);
+		request.WithBucket(getBucket());
+		request.SetBody(body);
+		request.SetContentLength(len);
+		request.SetContentType("binary/octet-stream");
 		for(auto metadata_itor = metadata.begin();
 			metadata_itor != metadata.end();
 			metadata_itor++)
 		{
-			putObjectRequest.AddMetadata(metadata_itor->first, metadata_itor->second);
+			request.AddMetadata(metadata_itor->first, metadata_itor->second);
 		}
-		AWS_LOGSTREAM_DEBUG("K3-PUT", "Putting object to S3 bucket '" << getBucket() << "'");
-		auto putObjectOutcome = _ps3client->PutObject(putObjectRequest);
-		if((rval = putObjectOutcome.IsSuccess()) == false) {
-			AWS_LOGSTREAM_INFO("K3-PUT",
+		AWS_LOGSTREAM_DEBUG("K3-PUT", 
+			"Putting object to S3 bucket '" << getBucket() << "'");
+		auto outcome = _sp3client->PutObject(request);
+		if((rval = outcome.IsSuccess()) == false) {
+			AWS_LOGSTREAM_WARN("K3-PUT",
 				"Error while putting Object; ExceptionName: "
-				<< putObjectOutcome.GetError().GetExceptionName()
-				<< "; Message: " << putObjectOutcome.GetError().GetMessage()
+				<< outcome.GetError().GetExceptionName()
+				<< "; Message: " << outcome.GetError().GetMessage()
 			);
 		}
 		else {
-			AWS_LOGSTREAM_DEBUG("K3-PUT", "Put object to S3 bucket '" << getBucket() << "' Success");
+			AWS_LOGSTREAM_DEBUG("K3-PUT", 
+				"Put object to S3 bucket '" << getBucket() << "' Success");
 		}
 	}
 	else {
-		AWS_LOGSTREAM_WARN("K3-PUT", "Failed to PUT, no S3 client defined at line " << __LINE__ << " in file " << __FILE__);
+		AWS_LOGSTREAM_WARN("K3-PUT", 
+			"Failed to PUT, no S3 client defined at line " 
+			<< __LINE__ << " in file " << __FILE__);
 	}
 	return rval;
 }
