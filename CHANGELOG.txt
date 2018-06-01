@@ -1,6 +1,7 @@
 1.6
 -- Add ability to define loglevel
 -- Use AWS logging features to own code
+-- Update AWS CPP lib to 1.4.59
 
 1.5
 -- Allow ENV var to config broker list and batchsize
