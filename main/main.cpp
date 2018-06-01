@@ -6,7 +6,7 @@
 #include <jansson.h>
 
 #include "s3.hpp"
-#include "k3aws.hpp"
+#include "awsguard.hpp"
 #include "consume.hpp"
 
 static bool run_system;
@@ -22,7 +22,6 @@ static int
 comsume_to_s3(bool *run)
 {
 	int rval = -1;
-	K3Aws aws;
 	json_error_t jerr;
 	json_t *pconf, *paws, *pkafka;
 
@@ -38,8 +37,9 @@ comsume_to_s3(bool *run)
 	paws = json_object_get(pconf, "aws");
 	pkafka = json_object_get(pconf, "kafka");
 	
-	S3 s3client;
-	Consume consumer;
+	K3::AwsGuard aws(paws);
+	K3::S3 s3client;
+	K3::Consume consumer;
 	s3client.setup(paws);
 	consumer.setup(pkafka);
 	consumer.setS3client(&s3client);

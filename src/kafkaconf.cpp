@@ -6,6 +6,8 @@
 #include "utils.hpp"
 #include "kafkaconf.hpp"
 
+namespace K3 {
+
 KafkaConf::KafkaConf()
 {}
 
@@ -44,4 +46,5 @@ KafkaConf::create(json_t *pjson, RdKafka::Conf::ConfType intype)
 	return rval;
 }
 
+}; // namespace K3
 

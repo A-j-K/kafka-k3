@@ -7,6 +7,8 @@
 
 #include <librdkafka/rdkafkacpp.h>
 
+namespace K3 {
+
 class MessageWrapper
 {
 public:
@@ -71,4 +73,6 @@ struct MessageHeader
 	}
 };
 #pragma pack(pop)
+
+}; // namespace K3
 

@@ -1,6 +1,8 @@
 
 #include "messagewrapper.hpp"
 
+namespace K3 {
+
 MessageWrapper::MessageWrapper() : 
 	_pconsumer(0), _pmessage(0) 
 {}
@@ -27,4 +29,6 @@ MessageWrapper::getMessage()
 {
 	return _pmessage; 
 }
+
+}; // namespace K3
 

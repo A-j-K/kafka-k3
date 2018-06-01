@@ -4,6 +4,8 @@
 #include <jansson.h>
 #include <librdkafka/rdkafkacpp.h>
 
+namespace K3 {
+
 class KafkaConf
 {
 public:
@@ -13,4 +15,6 @@ public:
 	virtual ~KafkaConf();
 	virtual RdKafka::Conf* create(json_t*, RdKafka::Conf::ConfType);
 };
+
+}; // namespace K3
 

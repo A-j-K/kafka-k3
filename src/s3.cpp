@@ -6,16 +6,13 @@
 
 #include <aws/core/http/Scheme.h>
 #include <aws/s3/model/CreateBucketRequest.h>
+#include <aws/core/utils/logging/LogMacros.h>
 #include <aws/s3-encryption/S3EncryptionClient.h>
 #include <aws/s3-encryption/CryptoConfiguration.h>
 #include <aws/core/auth/AWSCredentialsProviderChain.h>
 #include <aws/s3-encryption/materials/KMSEncryptionMaterials.h>
 
-using namespace Aws::S3;
-using namespace Aws::Auth;
-using namespace Aws::S3::Model;
-using namespace Aws::S3Encryption;
-using namespace Aws::S3Encryption::Materials;
+namespace K3 {
 
 S3::S3() :
 	_pcreds(0),
@@ -66,26 +63,26 @@ S3::prepare()
 	if(getKmsArn().size() == 0) {
 		if(getAccessKey().size() > 0) {
 			_pcreds = new Aws::Auth::AWSCredentials(getAccessKey(), getSecretKey());
-			_ps3client = new S3Client(*_pcreds, *_pconfig);
+			_ps3client = new Aws::S3::S3Client(*_pcreds, *_pconfig);
 		}
 		else {
 			auto pcreds = Aws::MakeShared<Aws::Auth::DefaultAWSCredentialsProviderChain>("");
-			_ps3client = new S3Client(pcreds, *_pconfig);
+			_ps3client = new Aws::S3::S3Client(pcreds, *_pconfig);
 		}
 	}
 	else {
-		auto kmsMaterials = Aws::MakeShared<KMSEncryptionMaterials>("", getKmsArn());
-		CryptoConfiguration crypto_configuration(
-			StorageMethod::METADATA,
-			CryptoMode::STRICT_AUTHENTICATED_ENCRYPTION);
+		auto kmsMaterials = Aws::MakeShared<Aws::S3Encryption::Materials::KMSEncryptionMaterials>("", getKmsArn());
+		Aws::S3Encryption::CryptoConfiguration crypto_configuration(
+			Aws::S3Encryption::StorageMethod::METADATA,
+			Aws::S3Encryption::CryptoMode::STRICT_AUTHENTICATED_ENCRYPTION);
 		if(getAccessKey().size() > 0) {	
 			_pcreds = new Aws::Auth::AWSCredentials(getAccessKey(), getSecretKey());
-			_ps3client = new S3EncryptionClient(kmsMaterials,
+			_ps3client = new Aws::S3Encryption::S3EncryptionClient(kmsMaterials,
 				crypto_configuration, *_pcreds, *_pconfig);		
 		}
 		else {
 			auto pcreds = Aws::MakeShared<Aws::Auth::DefaultAWSCredentialsProviderChain>("");
-			_ps3client = new S3EncryptionClient(kmsMaterials,
+			_ps3client = new Aws::S3Encryption::S3EncryptionClient(kmsMaterials,
 				crypto_configuration, pcreds, *_pconfig);
 		}
 		_encrypted = true;
@@ -122,7 +119,7 @@ S3::put(const char *payload, size_t len,
 {
 	bool rval = false;
 	if(_ps3client) {
-		PutObjectRequest putObjectRequest;
+		Aws::S3::Model::PutObjectRequest putObjectRequest;
 		putObjectRequest.WithKey(s3key);
 		putObjectRequest.WithBucket(getBucket());
 		auto requestStream = _encrypted ?
@@ -136,16 +133,24 @@ S3::put(const char *payload, size_t len,
 		{
 			putObjectRequest.AddMetadata(metadata_itor->first, metadata_itor->second);
 		}
+		AWS_LOGSTREAM_DEBUG("K3-PUT", "Putting object to S3 bucket '" << getBucket() << "'");
 		auto putObjectOutcome = _ps3client->PutObject(putObjectRequest);
 		if((rval = putObjectOutcome.IsSuccess()) == false) {
-			*_plog << "Error while putting Object " 
-	                << putObjectOutcome.GetError().GetExceptionName() 
-        	        << " " 
-                	<< putObjectOutcome.GetError().GetMessage() 
-	                << std::endl;
+			AWS_LOGSTREAM_INFO("K3-PUT",
+				"Error while putting Object; ExceptionName: "
+				<< putObjectOutcome.GetError().GetExceptionName()
+				<< "; Message: " << putObjectOutcome.GetError().GetMessage()
+			);
 		}
+		else {
+			AWS_LOGSTREAM_DEBUG("K3-PUT", "Put object to S3 bucket '" << getBucket() << "' Success");
+		}
+	}
+	else {
+		AWS_LOGSTREAM_WARN("K3-PUT", "Failed to PUT, no S3 client defined at line " << __LINE__ << " in file " << __FILE__);
 	}
 	return rval;
 }
 
+}; // namespace K3
 

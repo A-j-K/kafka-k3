@@ -14,6 +14,7 @@
 #include "kafkaconf.hpp"
 #include "messagewrapper.hpp"
 
+namespace K3 {
 
 Consume::Consume() :
 	_plog(&std::cout),
@@ -357,4 +358,6 @@ Consume::stash_by_topic(const char *topic, MessageVector &messages)
 		messages.clear();
 	}
 }
+
+}; // namespace K3
 

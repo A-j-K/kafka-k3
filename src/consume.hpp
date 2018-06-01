@@ -11,6 +11,8 @@
 #include "s3.hpp"
 #include "messagewrapper.hpp"
 
+namespace K3 { 
+
 class Consume 
 {
 public:
@@ -103,4 +105,6 @@ protected:
 	virtual void stash_all();
 	virtual void stash_by_topic(const char*, MessageVector&);
 };
+
+}; // namespace K3
 

@@ -11,6 +11,8 @@
 #include <aws/s3/S3Client.h>
 #include <aws/core/auth/AWSCredentialsProviderChain.h>
 
+namespace K3 {
+
 class S3
 {
 protected:
@@ -64,3 +66,6 @@ public:
 		std::string & s3key,
 	        std::map<std::string, std::string> & metadata);
 };
+
+}; // namespace K3
+
