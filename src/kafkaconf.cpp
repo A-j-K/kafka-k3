@@ -17,6 +17,7 @@ KafkaConf::~KafkaConf()
 RdKafka::Conf* 
 KafkaConf::create(json_t *pjson, RdKafka::Conf::ConfType intype)
 {
+	bool have_group = false;
 	RdKafka::Conf *rval = NULL;
 	if (json_is_object(pjson)) {
 		json_t *pval;
@@ -40,8 +41,25 @@ KafkaConf::create(json_t *pjson, RdKafka::Conf::ConfType intype)
 					<< __LINE__ << " " << errstr
 				);
 			}
+			if(!have_group && std::string(pkey) == "group.id") {
+				have_group = true;
+			}
 		}
 		
+	}
+	if(rval && !have_group) {
+		std::string errstr;
+		RdKafka::Conf::ConfResult result =
+			rval->set("group.id", "k3consumergroup", errstr);
+		if(result != RdKafka::Conf::ConfResult::CONF_OK) {
+			delete rval;
+			rval = NULL;
+			throw std::invalid_argument(
+				stringbuilder()
+				<< "Configure failure for group.id at line "
+				<< __LINE__ << " " << errstr
+			);
+		}
 	}
 	return rval;
 }

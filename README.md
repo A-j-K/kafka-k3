@@ -25,7 +25,7 @@ Here's an example:-
 			"foobarbaz"
 		],
                 "default_global_conf": {
-                        "group.id": "mytestk3group",
+                        "group.id": "k3consumergroup",
                         "metadata.broker.list": "kafka:443",
                         "sasl.mechanisms": "PLAIN",
                         "sasl.username": "<sasl-username-goes-here>",
@@ -58,6 +58,10 @@ If the config item is missing no encryption is used. If you specify an AWS KMS A
 ```kafka.default_global_conf``` are key values pairs that get passed directly to the RdKafka lower level library. 
 
 See https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md for available confuration options.
+
+Note, a modern Kafka high level consumer is used. If ```group.id``` is not set then a default of ```k3consumergroup``` is used.
+
+```auto.commit.enable``` is always set to ```false``` as AsyncCommit is used to commit to Kafka after the messages are stored in S3.
 
 # Enviroment Vars
 

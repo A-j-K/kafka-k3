@@ -1,3 +1,7 @@
+1.8
+-- Make sure "group.id" is set to a default value.
+-- Update README.md to reflect this and add some extra documentation.
+
 1.7
 -- Kafka names topics "__consumer_*" to hold Kafka Consumer metatdata. Ignore these.
 -- Upgrade AWS SDK to 1.4.62
