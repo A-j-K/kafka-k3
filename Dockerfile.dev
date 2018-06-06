@@ -1,33 +1,34 @@
 
+# This image built SASL library, use as a source for COPY --from
 FROM k3:sasl AS SASL_SOURCE_IMG
 
+# Build the intermediate container used for release COPY and for development builds
 FROM alpine:3.7
 
 ARG AWS_SDK_CPP_VER_MAJOR
 ENV AWS_SDK_CPP_VER_MAJOR ${AWS_SDK_CPP_VER_MAJOR:-1}
 ARG AWS_SDK_CPP_VER_MINOR
-ENV AWS_SDK_CPP_VER_MINOR ${AWS_SDK_CPP_VER_MINOR:-3}
+ENV AWS_SDK_CPP_VER_MINOR ${AWS_SDK_CPP_VER_MINOR:-4}
 ARG AWS_SDK_CPP_VER_PATCH
-ENV AWS_SDK_CPP_VER_PATCH ${AWS_SDK_CPP_VER_PATCH:-47}
+ENV AWS_SDK_CPP_VER_PATCH ${AWS_SDK_CPP_VER_PATCH:-62}
 
 ENV AWS_SDK_CPP_VER "${AWS_SDK_CPP_VER_MAJOR}.${AWS_SDK_CPP_VER_MINOR}"
 ENV AWS_SDK_CPP_VERSION "${AWS_SDK_CPP_VER}.${AWS_SDK_CPP_VER_PATCH}"
 
-ARG CMAKE_VER_MAJOR
-ENV CMAKE_VER_MAJOR ${CMAKE_VER_MAJOR:-3}
-ARG CMAKE_VER_MINOR
-ENV CMAKE_VER_MINOR ${CMAKE_VER_MINOR:-10}
-ARG CMAKE_VER_PATCH
-ENV CMAKE_VER_PATCH ${CMAKE_VER_PATCH:-2}
+ARG RDKAFKA_VER_MAJOR
+ENV RDKAFKA_VER_MAJOR ${RDKAFKA_VER_MAJOR:-0}
+ARG RDKAFKA_VER_MINOR
+ENV RDKAFKA_VER_MINOR ${RDKAFKA_VER_MINOR:-11}
+ARG RDKAFKA_VER_PATCH
+ENV RDKAFKA_VER_PATCH ${RDKAFKA_VER_PATCH:-4}
+
+ENV RDKAFKA_VER "${RDKAFKA_VER_MAJOR}.${RDKAFKA_VER_MINOR}.${RDKAFKA_VER_PATCH}"
 
 # We have to build libcurl from source because the Alpine
 # package from 7.59 to 7.60 appears to have broken and 
 # produces compile/link errors. Manually building solved
 # this annoying issue.
 ENV LIBCURL_VER "7_60_0"
-
-ENV CMAKE_VER "${CMAKE_VER_MAJOR}.${CMAKE_VER_MINOR}"
-ENV CMAKE_VERSION "${CMAKE_VER}.${CMAKE_VER_PATCH}"
 
 ARG ENABLE_UNITY_BUILD
 ENV ENABLE_UNITY_BUILD "${ENABLE_UNITY_BUILD}:-OFF"
@@ -68,20 +69,23 @@ COPY --from=SASL_SOURCE_IMG /usr/local/lib/sasl2 /usr/lib/sasl2
 
 RUN	apk add --no-cache \
 		$DEPS $DEPS_DEV_TOOLS $DEPS_BUILD_TOOLS \
+	&& echo "Building libcurl ${LIBCURL_VER} ..." \
 	&& mkdir -p /tmp/build \
-	&& wget -q https://github.com/curl/curl/archive/curl-${LIBCURL_VER}.zip \
+	&& wget https://github.com/curl/curl/archive/curl-${LIBCURL_VER}.zip \
 	&& unzip curl-${LIBCURL_VER}.zip && rm curl-${LIBCURL_VER}.zip \
 	&& cd curl-curl-${LIBCURL_VER} && mkdir build && cd build \
 	&& cmake .. -DCURL_STATICLIB=ON -DHTTP_ONLY=ON -DBUILD_TESTING=OFF \
 	&& make && make install \
 	&& cd /tmp && rm -rf build && cd / \
+	&& echo "Building librdkafka ${RDKAFKA_VER} ... " \
 	&& mkdir -p /tmp/build \
-	&& wget -q https://github.com/edenhill/librdkafka/archive/v0.11.4.zip \
-	&& unzip v0.11.4.zip && rm v0.11.4.zip \
-	&& cd librdkafka-0.11.4 \
+	&& wget https://github.com/edenhill/librdkafka/archive/v${RDKAFKA_VER}.zip \
+	&& unzip v${RDKAFKA_VER}.zip && rm v${RDKAFKA_VER}.zip \
+	&& cd librdkafka-${RDKAFKA_VER} \
 	&& ./configure --enable-static \
 	&& make && make install \
 	&& cd /tmp && rm -rf build && cd / \
+	&& echo "Building AWS CPP SDK components ${AWS_SDK_CPP_VERSION} ... " \
 	&& mkdir -p /tmp/build/build && cd /tmp/build \
 	&& curl -sSL https://github.com/aws/aws-sdk-cpp/archive/${AWS_SDK_CPP_VERSION}.zip > aws-sdk-cpp-${AWS_SDK_CPP_VERSION}.zip \
 	&& unzip aws-sdk-cpp-${AWS_SDK_CPP_VERSION}.zip \

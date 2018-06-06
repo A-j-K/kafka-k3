@@ -1,8 +1,10 @@
 #!/bin/bash
 
+set -e
+
 AWS_SDK_CPP_VER_MAJOR="1"
 AWS_SDK_CPP_VER_MINOR="4"
-AWS_SDK_CPP_VER_PATCH="59"
+AWS_SDK_CPP_VER_PATCH="62"
 
 VER=`head -1 CHANGELOG.txt`
 

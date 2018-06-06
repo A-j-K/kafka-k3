@@ -1,3 +1,8 @@
+1.7
+-- Kafka names topics "__consumer_*" to hold Kafka Consumer metatdata. Ignore these.
+-- Upgrade AWS SDK to 1.4.62
+-- Specify the rdkafka library version at build time via vars
+
 1.6
 -- Add ability to define loglevel
 -- Use AWS logging features to own code
