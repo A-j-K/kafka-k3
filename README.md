@@ -17,7 +17,8 @@ Here's an example:-
 
         "kafka": {
 		"general": {
-			"batchsize": 100
+			"batchsize": 100,
+			"binsize": 10000000
 		},
                 "topics": [
                 ],
@@ -52,6 +53,10 @@ Place the AWS KMS ARN here if you want to use the AWS SDK S3 encryption client.
 If the config item is missing no encryption is used. If you specify an AWS KMS ARN make sure the IAM role used at ```aws.access_key``` has permissions to use the KMS key or PUT will fail with access denied.
 
 ```general.batchsize``` is how many events to store in each AWS S3 PUT operation.
+
+```general.binsize``` as the number of messages in teh pipe grow (to place multiple messages in a single S3 PUT) limit the size it can grow to until an S3 PUT is forced regardless.
+
+```general.collecttime_ms``` as the number of messages in the pipe grow (to place multiple messages in a single S3 PUT) how long to wait before an S3 PUT is forced regardless (time in milliseconds).
 
 ```kafka.exclude_topics```: Array of strings of topics to exclude from dumping. Wildcards are supported, for example ```test*```.
 

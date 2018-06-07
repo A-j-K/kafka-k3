@@ -1,3 +1,7 @@
+1.9
+-- Add general.binsize config property
+-- Add general.collecttime_ms config property
+
 1.8
 -- Make sure "group.id" is set to a default value.
 -- Update README.md to reflect this and add some extra documentation.

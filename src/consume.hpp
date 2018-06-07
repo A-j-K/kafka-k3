@@ -39,6 +39,21 @@ protected:
 	virtual bool 
 	topic_excluded(std::string & topic);
 
+	virtual void
+	setup_exclude_topics(json_t*);
+
+	virtual void
+	setup_topics(json_t*, std::vector<std::string>&);
+
+	virtual void
+	setup_general(json_t*);
+
+	virtual void
+	setup_default_global_conf(json_t*);
+
+	virtual void
+	setup_default_topic_conf(json_t*);
+
 public:
 	Consume();
 	virtual ~Consume();

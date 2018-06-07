@@ -54,67 +54,11 @@ Consume::setup(json_t *pjson)
 	std::string errstr;
 	std::vector<std::string> topics;
 
-	auto p = json_object_get(pjson, "exclude_topics");
-	if(p && json_is_array(p)) {
-		size_t index;
-		json_t *pval;	
-		json_array_foreach(p, index, pval) {
-			if(json_is_string(pval)) {
-				_exclude_topics.push_back(std::string(json_string_value(pval)));
-			}
-			else if(json_is_object(pval)) {
-				auto pname = json_object_get(pval, "name");
-				if(pname) {
-					_exclude_topics.push_back(std::string(json_string_value(pname)));
-				}
-			}
-		}
-	}
-
-	p = json_object_get(pjson, "topics");
-	if(p && json_is_array(p)) {
-		size_t index;
-		json_t *pval;	
-		json_array_foreach(p, index, pval) {
-			if(json_is_string(pval)) {
-				std::string str_topic(json_string_value(pval));
-				if(!topic_excluded(str_topic)) {
-					topics.push_back(str_topic);
-				}
-			}
-			else if(json_is_object(pval)) {
-				auto pname = json_object_get(pval, "name");
-				if(pname) {
-					std::string str_topic(json_string_value(pname));
-					if(!topic_excluded(str_topic)) {
-						topics.push_back(str_topic);
-					}
-				}
-			}
-		}
-	}
-
-	p = json_object_get(pjson, "general");
-	if(p && json_is_object(p)) {
-		json_t *ptemp;
-		if((ptemp = json_object_get(p, "batchsize"))) {
-			if(json_is_integer(ptemp)) {
-				setMessageBundleLimit(json_integer_value(ptemp));
-			}
-		}
-	}
-
-	p = json_object_get(pjson, "default_global_conf");
-	if(p && json_is_object(p)) {
-		KafkaConf helper;
-		_pconf = helper.create(p, RdKafka::Conf::CONF_GLOBAL);
-	}
-	else {
-		throw std::invalid_argument(
-			stringbuilder()
-			<< "Failed to create a configuration"
-		);
-	}
+	setup_exclude_topics(pjson);
+	setup_topics(pjson, topics);
+	setup_general(pjson);
+	setup_default_global_conf(pjson);
+	setup_default_topic_conf(pjson);
 
 	// Allow ENV vars to override config file if they exist.
 	if((s = std::getenv("KAFKA_GROUP_ID")) != NULL) {
@@ -138,16 +82,6 @@ Consume::setup(json_t *pjson)
 	if((s = std::getenv("KAFKA_MESSAGE_BATCHSIZE")) != NULL) {
 		int i = atoi(s);
 		setMessageBundleLimit(i);
-	}
-
-	p = json_object_get(pjson, "default_topic_conf");
-	if(p && json_is_object(p)) {
-		KafkaConf helper;
-		RdKafka::Conf *tconf = NULL;
-		if((tconf = helper.create(p, RdKafka::Conf::CONF_TOPIC)) != NULL) {
-			_pconf->set("default_topic_conf", tconf, errstr);
-			delete tconf;
-		}
 	}
 
 	_pconf->set("enable.auto.commit", "false", errstr);
@@ -242,7 +176,7 @@ Consume::run(bool *loop_control)
 			switch(pmsg->err()) {
 			case RdKafka::ERR_NO_ERROR: 
 				topic_name = pmsg->topic_name();
-				_messages[pmsg->topic_name()].push_back(
+				_messages[topic_name].push_back(
 					MessageWrapper::ShPtr(new MessageWrapper(_pconsumer, pmsg))
 				);
 				{
@@ -252,7 +186,7 @@ Consume::run(bool *loop_control)
 					}
 					_messageSizes[topic_name] += pmsg->len();
 				}
-				if(_messages[pmsg->topic_name()].size() >= getMessageBundleLimit()) {
+				if(_messages[topic_name].size() >= getMessageBundleLimit()) {
 					stash_by_topic(topic_name.c_str(), _messages[topic_name]);
 					_messageSizes[topic_name] = 0;
 				}
@@ -350,6 +284,120 @@ Consume::stash_by_topic(const char *topic, MessageVector &messages)
 			if(p) delete [] p;
 		}
 		messages.clear();
+	}
+}
+
+void
+Consume::setup_exclude_topics(json_t *pjson)
+{
+	auto p = json_object_get(pjson, "exclude_topics");
+	if(p && json_is_array(p)) {
+		size_t index;
+		json_t *pval;	
+		json_array_foreach(p, index, pval) {
+			if(json_is_string(pval)) {
+				_exclude_topics.push_back(std::string(json_string_value(pval)));
+			}
+			else if(json_is_object(pval)) {
+				auto pname = json_object_get(pval, "name");
+				if(pname) {
+					_exclude_topics.push_back(std::string(json_string_value(pname)));
+				}
+			}
+		}
+	}
+
+}
+
+void
+Consume::setup_topics(json_t *pjson, std::vector<std::string> & topics)
+{
+	auto p = json_object_get(pjson, "topics");
+	if(p && json_is_array(p)) {
+		size_t index;
+		json_t *pval;	
+		json_array_foreach(p, index, pval) {
+			if(json_is_string(pval)) {
+				std::string str_topic(json_string_value(pval));
+				if(!topic_excluded(str_topic)) {
+					topics.push_back(str_topic);
+				}
+			}
+			else if(json_is_object(pval)) {
+				auto pname = json_object_get(pval, "name");
+				if(pname) {
+					std::string str_topic(json_string_value(pname));
+					if(!topic_excluded(str_topic)) {
+						topics.push_back(str_topic);
+					}
+				}
+			}
+		}
+	}
+}
+
+void
+Consume::setup_general(json_t *pjson)
+{
+	auto p = json_object_get(pjson, "general");
+	if(p && json_is_object(p)) {
+		json_t *ptemp;
+		if((ptemp = json_object_get(p, "batchsize"))) {
+			if(json_is_integer(ptemp)) {
+				setMessageBundleLimit(json_integer_value(ptemp));
+			}
+		}
+		if((ptemp = json_object_get(p, "binsize"))) {
+			if(json_is_integer(ptemp)) {
+				setMessageBundleSize(json_integer_value(ptemp));
+			}
+		}
+		if((ptemp = json_object_get(p, "collecttime_ms"))) {
+			if(json_is_integer(ptemp)) {
+				setConsumeWaitTime(json_integer_value(ptemp));
+			}
+		}
+	}
+}
+
+void
+Consume::setup_default_global_conf(json_t *pjson)
+{
+	auto p = json_object_get(pjson, "default_global_conf");
+	if(p && json_is_object(p)) {
+		KafkaConf helper;
+		_pconf = helper.create(p, RdKafka::Conf::CONF_GLOBAL);
+	}
+	else {
+		throw std::invalid_argument(
+			stringbuilder()
+			<< "Failed to create a configuration"
+		);
+	}
+
+}
+
+void
+Consume::setup_default_topic_conf(json_t *pjson)
+{
+	std::string errstr;
+	auto p = json_object_get(pjson, "default_topic_conf");
+	if(_pconf && p && json_is_object(p)) {
+		KafkaConf helper;
+		RdKafka::Conf *tconf = NULL;
+		if((tconf = helper.create(p, RdKafka::Conf::CONF_TOPIC)) != NULL) {
+			_pconf->set("default_topic_conf", tconf, errstr);
+			delete tconf;
+		}
+		else {
+			throw std::invalid_argument(
+				stringbuilder()
+				<< "Failed to create a topic configuration: "
+				<< errstr 
+				<< " at line " << __LINE__ 
+				<< " in file " << __FILE__
+			);
+		}
 	}
 }
 
