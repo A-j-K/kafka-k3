@@ -12,6 +12,8 @@ Build the entire package using the ```build.sh``` script. This ensures all the c
 
 ## Step 2
 
+Create a test version of ```/etc/k3conf.json``` configuration with appropiate values (see README.md)
+
 In a seperate bash shell start a k3:dev container and build a local k3 instance:
 
 ```
@@ -25,9 +27,7 @@ You should now have main/k3 program built.
 
 ## Step 3
 
-Test your dev build by creating an ```/etc/k3conf.json``` configuration with appropiate values (see README.md)
-
-Run a test
+Run a test (note the /etc/k3conf.json was mounted from your host at the previous step)
 
 ```
 bash-4.4# main/k3
@@ -35,5 +35,5 @@ bash-4.4# main/k3
 
 ## Step 4
 
-You can now swap back to the other bash shell window and work on the code. To build changes you make swap bash shells and just rerun ```make``` and test again.
+You can now swap back to the other bash shell window and work on the code. To build changes you swap bash shells and just rerun ```make``` and test again.
 
