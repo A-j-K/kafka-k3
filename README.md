@@ -66,7 +66,6 @@ See https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md for avai
 
 Note, a modern Kafka high level consumer is used. If ```group.id``` is not set then a default of ```k3consumergroup``` is used.
 
-```auto.commit.enable``` is always set to ```false``` as AsyncCommit is used to commit to Kafka after the messages are stored in S3.
 
 # Enviroment Vars
 

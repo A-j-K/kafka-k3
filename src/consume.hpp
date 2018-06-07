@@ -117,6 +117,7 @@ protected:
 
 	virtual int64_t messageChecksum(const char *, size_t);
 
+	virtual void run_once();
 	virtual void stash_all();
 	virtual void stash_by_topic(const char*, MessageVector&);
 };

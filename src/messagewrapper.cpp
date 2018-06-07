@@ -13,7 +13,7 @@ MessageWrapper::MessageWrapper(RdKafka::KafkaConsumer *pc, RdKafka::Message *pm)
 
 MessageWrapper::~MessageWrapper() {
 	if(_pmessage && _pconsumer) {
-		_pconsumer->commitAsync(_pmessage);
+		// _pconsumer->commitAsync(_pmessage);
 		delete _pmessage;
 	}
 }

@@ -26,11 +26,12 @@ Consume::Consume() :
 
 Consume::~Consume()
 {
-	if(_pconf) delete _pconf;
+	stash_all();
 	if(_pconsumer) {
 		_pconsumer->close();
 		delete _pconsumer;
 	}
+	if(_pconf) delete _pconf;
 	RdKafka::wait_destroyed(5000);
 }
 
@@ -84,7 +85,7 @@ Consume::setup(json_t *pjson)
 		setMessageBundleLimit(i);
 	}
 
-	_pconf->set("enable.auto.commit", "false", errstr);
+	_pconf->set("enable.auto.commit", "true", errstr);
 
 	_pconsumer = RdKafka::KafkaConsumer::create(_pconf, errstr);
 	if(!_pconsumer) {
@@ -170,62 +171,68 @@ void
 Consume::run(bool *loop_control)
 {
 	while(*loop_control != false) {
-		RdKafka::Message *pmsg = NULL;
-		if((pmsg = _pconsumer->consume(getConsumeWaitTime())) != NULL) {
-			std::string topic_name;
-			switch(pmsg->err()) {
-			case RdKafka::ERR_NO_ERROR: 
-				topic_name = pmsg->topic_name();
-				_messages[topic_name].push_back(
-					MessageWrapper::ShPtr(new MessageWrapper(_pconsumer, pmsg))
-				);
-				{
-					MessageMapSize::const_iterator itor = _messageSizes.find(topic_name);
-					if(itor == _messageSizes.end()) {
-						_messageSizes[topic_name] = 0;
-					}
-					_messageSizes[topic_name] += pmsg->len();
+		run_once();
+	}
+}
+
+void
+Consume::run_once()
+{
+	RdKafka::Message *pmsg = NULL;
+	if((pmsg = _pconsumer->consume(getConsumeWaitTime())) != NULL) {
+		std::string topic_name;
+		switch(pmsg->err()) {
+		case RdKafka::ERR_NO_ERROR: 
+			topic_name = pmsg->topic_name();
+			_messages[topic_name].push_back(
+				MessageWrapper::ShPtr(new MessageWrapper(_pconsumer, pmsg))
+			);
+			{
+				MessageMapSize::const_iterator itor = _messageSizes.find(topic_name);
+				if(itor == _messageSizes.end()) {
+					_messageSizes[topic_name] = 0;
 				}
-				if(_messages[topic_name].size() >= getMessageBundleLimit()) {
+				_messageSizes[topic_name] += pmsg->len();
+			}
+			if(_messages[topic_name].size() >= getMessageBundleLimit()) {
+				stash_by_topic(topic_name.c_str(), _messages[topic_name]);
+				_messageSizes[topic_name] = 0;
+			}
+			else {
+				if(_messageSizes[topic_name] >= getMessageBundleSize()) {
 					stash_by_topic(topic_name.c_str(), _messages[topic_name]);
 					_messageSizes[topic_name] = 0;
 				}
-				else {
-					if(_messageSizes[topic_name] >= getMessageBundleSize()) {
-						stash_by_topic(topic_name.c_str(), _messages[topic_name]);
-						_messageSizes[topic_name] = 0;
-					}
-				}
-				break;
-			default:
-			case RdKafka::ERR__TIMED_OUT: 
-			case RdKafka::ERR__PARTITION_EOF:
-				stash_all();
-				delete pmsg;
-				break;
-			} // switch ends
-		}
+			}
+			// We don't delete pmsg here as it's ownership is assigned to
+			// a MessageWrapper::ShPtr which in turn deletes it (and during 
+			// delete the commitAsync() is called to ensure it's committed)
+			// when the _messages map is cleared during stash.
+			break;
+		default:
+		case RdKafka::ERR__TIMED_OUT: 
+		case RdKafka::ERR__PARTITION_EOF:
+			stash_all();
+			delete pmsg;
+			break;
+		} // switch ends
 	}
-
-	stash_all(); 
 }
 
 void
 Consume::stash_all()
 {
-	if(_messages.size() > 0) {
-		for(MessageMap::iterator itor = _messages.begin(); 
-		    itor != _messages.end();
-		    itor++) 
-		{
-			stash_by_topic(itor->first.c_str(), itor->second);
-		}
+	if(_messages.size() < 1) return;
+	for(auto itor = _messages.begin(); itor != _messages.end(); itor++) {
+		stash_by_topic(itor->first.c_str(), itor->second);
 	}
 }
 
 void 
 Consume::stash_by_topic(const char *topic, MessageVector &messages)
 {
+	if(messages.size() < 1) return;
+
 	// Note, using S3 multipart uploads would have been much better
 	// and more memory efficient. However, each multipart is a PUT
 	// operation and we are "bulking up" messages into a single PUT
@@ -237,53 +244,54 @@ Consume::stash_by_topic(const char *topic, MessageVector &messages)
 	// message content after the header. The header contains the
 	// size of the message to expect and various other pieces of
 	// information about the message.
-	if(messages.size() > 0) {
-		int64_t total_payload_size = messagesSize(messages);
-		if(total_payload_size > 0) {
-			int index_counter = messages.size() - 1;
-			int64_t offset = 0;
-			int64_t total_header_size = sizeof(MessageHeader) * messages.size();
-			int64_t total_size = total_header_size + total_payload_size;
-			char *p = new char[(total_size + 1) * 2];
-			if(p && _ps3 != NULL) {
-				int64_t last_ts = 0;
-				std::string s3key;
-				Utils::Metadata metadata;
-				memset((void*)p, 0, (total_size + 1) * 2);
-				for(auto itor = messages.begin(); itor != messages.end(); itor++) {
-					MessageHeader *phead = (MessageHeader*)(p + offset);
-					RdKafka::Message *pmsg = (*itor)->getMessage();
-					size_t payload_len = (*itor)->getMessage()->len();
-					const char *payload = (const char*)(*itor)->getMessage()->payload();
-					phead->set(pmsg, index_counter--,
-						messageChecksum(payload, payload_len));
-					char *body = (char*)(p + sizeof(MessageHeader) + offset);
-					memcpy(body, payload, payload_len);
-					last_ts = pmsg->timestamp().timestamp;
-					offset += sizeof(MessageHeader) + payload_len;
-				}
-				{
-					char buffer[256];
-					auto t  = (time_t)(last_ts / 1000);
-					auto tm = localtime(&t);
-					memset(buffer, 0, sizeof(buffer));
-					strftime(buffer, sizeof(buffer), "%Y-%m-%d-%H-%M-%S", tm);
-					unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
-					std::minstd_rand0 generator(seed);
-					std::string key(stringbuilder()
-						<< topic << "/" << buffer
-						<< "." << seed
-						<< "-rand" << generator());
-					metadata["x-numofmsgs"] = stringbuilder() << messages.size();
-					_ps3->put(p, total_size, key, metadata);
-				}
+	int64_t total_payload_size = messagesSize(messages);
+	if(total_payload_size > 0) {
+		int index_counter = messages.size() - 1;
+		int64_t offset = 0;
+		int64_t total_header_size = sizeof(MessageHeader) * messages.size();
+		int64_t total_size = total_header_size + total_payload_size;
+		char *p = new char[(total_size + 1) * 2];
+		if(p && _ps3 != NULL) {
+			int64_t last_ts = 0;
+			std::string s3key;
+			Utils::Metadata metadata;
+			memset((void*)p, 0, (total_size + 1) * 2);
+			for(auto itor = messages.begin(); itor != messages.end(); itor++) {
+				MessageHeader *phead = (MessageHeader*)(p + offset);
+				RdKafka::Message *pmsg = (*itor)->getMessage();
+				size_t payload_len = (*itor)->getMessage()->len();
+				const char *payload = (const char*)(*itor)->getMessage()->payload();
+				phead->set(pmsg, index_counter--,
+					messageChecksum(payload, payload_len));
+				char *body = (char*)(p + sizeof(MessageHeader) + offset);
+				memcpy(body, payload, payload_len);
+				last_ts = pmsg->timestamp().timestamp;
+				offset += sizeof(MessageHeader) + payload_len;
 			}
-			else {
-				*_plog << "Failed to create RAM image, " << total_size << " bytes not available" << std::endl;
+			if(true) { // code block for temp vars.
+				char buffer[256];
+				auto t  = (time_t)(last_ts / 1000);
+				auto tm = localtime(&t);
+				memset(buffer, 0, sizeof(buffer));
+				strftime(buffer, sizeof(buffer), "%Y-%m-%d-%H-%M-%S", tm);
+				unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
+				std::minstd_rand0 generator(seed);
+				std::string key(stringbuilder()
+					<< topic << "/" << buffer
+					<< "." << seed
+					<< "-rand" << generator());
+				metadata["x-numofmsgs"] = stringbuilder() << messages.size();
+				_ps3->put(p, total_size, key, metadata);
 			}
-			if(p) delete [] p;
 		}
-		messages.clear();
+		else {
+			*_plog << "Failed to create RAM image, " << total_size << " bytes not available" << std::endl;
+		}
+		if(p) delete [] p;
+	}
+	auto itor = messages.begin();
+	while(itor != messages.end()) {
+		messages.erase(itor++);
 	}
 }
 

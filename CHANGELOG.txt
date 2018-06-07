@@ -1,3 +1,6 @@
+1.10
+-- Switch to auto commit 
+
 1.9
 -- Add general.binsize config property
 -- Add general.collecttime_ms config property
