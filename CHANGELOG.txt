@@ -1,3 +1,7 @@
+1.12
+-- So far only doc changes so no new container
+-- Added extra info to DEVEL.md (for my futre self's sanity)
+
 1.11
 -- Retagging for release.
 
