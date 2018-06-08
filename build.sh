@@ -24,6 +24,7 @@ VER=`head -1 CHANGELOG.txt`
 # above to produce a tiny Docker image we can push to the repo. \
 # Builds k3:rel-${VER}
 
+if [[ ! -z $BUILD_WORLD && $BUILD_WORLD == "yes" ]]; then
 docker build \
 	-f Dockerfile.sasl \
 	--tag k3:sasl \
@@ -36,7 +37,11 @@ docker build \
 	--build-arg BUILD_SHARED_LIBS="OFF" \
 	--build-arg ENABLE_UNITY_BUILD="ON" \
 	--tag k3:dev \
-	. \
+	. 
+else
+echo "Short build..."
+fi
+docker build -f Dockerfile.app --tag k3:app . \
 && docker build -f Dockerfile.rel --tag k3:rel-${VER} . \
 && echo "docker tag k3:rel-${VER} andykirkham/kafka-k3:${VER}" \
 && echo "docker push andykirkham/kafka-k3:${VER}" 

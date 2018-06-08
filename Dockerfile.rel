@@ -1,4 +1,4 @@
-FROM k3:dev as SOURCE_IMAGE
+FROM k3:app as SOURCE_IMAGE
 
 FROM alpine:3.7
 RUN apk update && apk add openssl bash ca-certificates \

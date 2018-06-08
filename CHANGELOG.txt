@@ -1,5 +1,5 @@
 1.10
--- Switch to auto commit 
+-- Improve build times by only building k3:dev when libs change.
 
 1.9
 -- Add general.binsize config property

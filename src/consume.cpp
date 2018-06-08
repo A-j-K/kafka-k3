@@ -85,7 +85,7 @@ Consume::setup(json_t *pjson)
 		setMessageBundleLimit(i);
 	}
 
-	_pconf->set("enable.auto.commit", "true", errstr);
+	_pconf->set("enable.auto.commit", "false", errstr);
 
 	_pconsumer = RdKafka::KafkaConsumer::create(_pconf, errstr);
 	if(!_pconsumer) {
@@ -291,7 +291,7 @@ Consume::stash_by_topic(const char *topic, MessageVector &messages)
 	}
 	auto itor = messages.begin();
 	while(itor != messages.end()) {
-		messages.erase(itor++);
+		itor = messages.erase(itor);
 	}
 }
 

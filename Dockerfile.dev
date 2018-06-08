@@ -63,7 +63,6 @@ ENV DEPS \
 	ca-certificates \
 	jansson 
 
-COPY . /buildspace
 COPY --from=SASL_SOURCE_IMG /usr/local/lib/libsasl2.a /usr/lib/libsasl2.a
 COPY --from=SASL_SOURCE_IMG /usr/local/lib/sasl2 /usr/lib/sasl2
 
@@ -101,16 +100,16 @@ RUN	apk add --no-cache \
 		-DENABLE_UNITY_BUILD=${ENABLE_UNITY_BUILD} \
 		../aws-sdk-cpp-${AWS_SDK_CPP_VERSION} \
 	&& make \
-	&& make install \
-	&& make clean \
-	&& cd / \
-	&& rm -rf /tmp/build \
-	&& rm -rf /var/lib/apt/lists/*
+	&& make install 
+#	&& make clean \
+#	&& cd / \
+#	&& rm -rf /tmp/build \
+#	&& rm -rf /var/lib/apt/lists/*
  
-RUN	cd /buildspace && mkdir build && cd build \
-	&& cmake .. && make VERBOSE=1 && cp main/k3 /usr/bin/k3 \
-	&& cd / && rm -rf buildspace
-WORKDIR /tmp
-CMD ["/bin/bash"]
+#RUN	cd /buildspace && mkdir build && cd build \
+#	&& cmake -DBUILD_DEBUG=ON .. && make VERBOSE=1 && cp main/k3 /usr/bin/k3 \
+#	&& cd / && rm -rf buildspace
+#WORKDIR /tmp
+#CMD ["/bin/bash"]
 
 
