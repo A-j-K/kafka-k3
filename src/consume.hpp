@@ -31,6 +31,9 @@ protected:
 	int			_message_bundle_limit;
 	int			_consume_wait_time;
 
+	bool			_rebalance_called;
+	double			_mem_percent;
+
 	std::vector<std::string>	_exclude_topics;
 
 	MessageMap 	_messages;
@@ -108,8 +111,19 @@ public:
 		return _message_bundle_size;
 	}
 
+	virtual double
+	getMemPercent() {
+		return _mem_percent;
+	}
+
+	virtual Consume&
+	setMemPercent(double d) {
+		_mem_percent = d;
+		return *this;
+	}
+
 	virtual void setup(json_t*);
-	virtual void run(bool *);
+	virtual int run(bool *);
 
 protected:
 

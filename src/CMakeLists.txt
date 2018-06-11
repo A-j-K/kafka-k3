@@ -3,9 +3,10 @@
 SET(k3_SRCS
 	s3.cpp
 	utils.cpp
-	awsguard.cpp
 	consume.cpp
+	awsguard.cpp
 	kafkaconf.cpp
+	memchecker.cpp
 	messagewrapper.cpp
 )
 

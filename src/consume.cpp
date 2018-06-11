@@ -12,6 +12,7 @@
 #include "utils.hpp"
 #include "consume.hpp"
 #include "kafkaconf.hpp"
+#include "memchecker.hpp"
 #include "messagewrapper.hpp"
 
 namespace K3 {
@@ -19,6 +20,8 @@ namespace K3 {
 Consume::Consume() :
 	_plog(&std::cout),
 	_ppenv(0),
+	_mem_percent(.85),
+	_rebalance_called(false),
 	_consume_wait_time(1000),
 	_message_bundle_limit(10),
 	_message_bundle_size(1024 * 1024 * 10)
@@ -167,12 +170,29 @@ Consume::messageChecksum(const char *inp, size_t len)
 	return i;
 }
 
-void
+int
 Consume::run(bool *loop_control)
 {
+	int mem_test_counter = 0;
+	MemChecker mem(_mem_percent);
 	while(*loop_control != false) {
+		if(false && _rebalance_called) {
+			// Actually, this is a bad thing to do because a rebalance will
+			// happen if one of the k3 instances is restarted by K8s or a mem
+			// failure. So we need to be smarter here about discovering new topics.
+			*_plog << "Kafka rebalance took place, restarting..." << std::endl;
+			return 2;
+		}
+		if(++mem_test_counter > 30) {
+			mem_test_counter = 0;
+			if(!mem.ok()) {
+				*_plog << "Over assigned memory limit, restarting..." << std::endl;
+				return 1; 
+			}
+		}
 		run_once();
 	}
+	return 0;
 }
 
 void
@@ -363,6 +383,14 @@ Consume::setup_general(json_t *pjson)
 		if((ptemp = json_object_get(p, "collecttime_ms"))) {
 			if(json_is_integer(ptemp)) {
 				setConsumeWaitTime(json_integer_value(ptemp));
+			}
+		}
+		if((ptemp = json_object_get(p, "mem_percent"))) {
+			if(json_is_real(ptemp)) {
+				double percent = json_real_value(ptemp);
+				if(percent < 1) {
+					setMemPercent(percent);
+				}
 			}
 		}
 	}

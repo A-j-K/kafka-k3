@@ -43,8 +43,7 @@ comsume_to_s3(bool *run)
 	s3client.setup(paws);
 	consumer.setup(pkafka);
 	consumer.setS3client(&s3client);
-	consumer.run(&run_system);
-	rval = 0;
+	rval = consumer.run(&run_system);
 	json_decref(pconf);
 	return rval;
 }
@@ -52,8 +51,8 @@ comsume_to_s3(bool *run)
 int
 main(int argc, char *argv[])
 {
-	int rval = 0;
-
+	int rval = 1;
+	
 	signal(SIGINT,  sigterm);
 	signal(SIGTERM, sigterm);
 
@@ -67,9 +66,15 @@ main(int argc, char *argv[])
 	}
 
 	run_system = true;
-	rval = comsume_to_s3(&run_system);
 
-	std::cout << "Shutting down" << std::endl;
+	// Zero indicates normal termination.
+	// Negative indicates fatal error.
+	// Positive indicates restart system requested.
+	while(rval > 0) {
+		rval = comsume_to_s3(&run_system);
+	}
+
+	std::cout << "Shutting down: " << rval << std::endl;
 	return rval;
 }
 
