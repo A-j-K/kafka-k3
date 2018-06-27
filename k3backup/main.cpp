@@ -38,6 +38,28 @@ comsume_to_s3(bool *run, json_t *pconf, char **envp)
 	return rval;
 }
 
+static json_t*
+get_config_file(const std::string & confile)
+{
+	json_t *pconf = NULL;
+	json_error_t jerr;
+
+	std::cout << "Try loading " << confile << ": ";
+	if((pconf = json_load_file(confile.c_str(), 0, &jerr)) == NULL) {
+		std::cout << jerr.text << std::endl;
+		if(jerr.line > -1 && jerr.column > -1) { 
+			std::cout << jerr.source 
+				<< " at line: " << jerr.line 
+				<< " col: " << jerr.column ;
+		}
+	}
+	else {
+		std::cout << "loaded";
+	}
+	std::cout << std::endl;
+	return pconf;
+}
+
 int
 main(int argc, char *argv[], char **envp)
 {
@@ -49,22 +71,10 @@ main(int argc, char *argv[], char **envp)
 	signal(SIGINT,  sigterm);
 	signal(SIGTERM, sigterm);
 
-	if((pconf = json_load_file("/etc/k3conf.json", 0, &jerr)) == NULL) {
-		std::cout << "Tried /etc/k3conf.json: " << jerr.text << std::endl 
-			<< jerr.source 
-			<< " at line: " << jerr.line 
-			<< " col: " << jerr.column 
-			<< std::endl 
-			<< " trying /etc/k3backup.json" << std::endl;
-		if((pconf = json_load_file("/etc/k3backup.json", 0, &jerr)) == NULL) {
-			std::cout << "Tried /etc/k3backup.json: " << jerr.text << std::endl 
-				<< jerr.source 
-				<< " at line: " << jerr.line 
-				<< " col: " << jerr.column 
-				<< std::endl;
-		}
+	pconf = get_config_file(std::string("/etc/k3conf.json"));
+	if(pconf == NULL) {
+		pconf = get_config_file(std::string("/etc/k3backup.json"));
 	}
-
 	if(pconf == NULL) {
 		for(int i = 1; i < argc; i++) {
 			if(std::string(argv[i]) == "-f") {
@@ -77,14 +87,7 @@ main(int argc, char *argv[], char **envp)
 			std::cout << "No configuration found to load\n";
 		}
 		else {
-			std::cout << "Trying " << conffile << std::endl;
-			if((pconf = json_load_file(conffile.c_str(), 0, &jerr)) == NULL) {
-				std::cout << "Tried " << conffile << ": " << jerr.text << std::endl 
-					<< jerr.source 
-					<< " at line: " << jerr.line 
-					<< " col: " << jerr.column 
-					<< std::endl;
-			}
+			pconf = get_config_file(conffile);
 		}
 	}
 
