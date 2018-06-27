@@ -1,13 +1,16 @@
 
+INCLUDE_DIRECTORIES(
+        "${PROJECT_SOURCE_DIR}/src/include"
+)
 
 SET(k3_SRCS
-	s3.cpp
-	utils.cpp
-	consume.cpp
-	awsguard.cpp
-	kafkaconf.cpp
-	memchecker.cpp
-	messagewrapper.cpp
+	common/s3.cpp
+	common/utils.cpp
+	common/consume.cpp
+	common/awsguard.cpp
+	common/kafkaconf.cpp
+	common/memchecker.cpp
+	common/messagewrapper.cpp
 )
 
 IF(BUILD_DEBUG)

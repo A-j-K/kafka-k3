@@ -1,5 +1,5 @@
 INCLUDE_DIRECTORIES(
-	"${PROJECT_SOURCE_DIR}/src"
+	"${PROJECT_SOURCE_DIR}/src/include"
 )
 
 SET(main_SRCS
