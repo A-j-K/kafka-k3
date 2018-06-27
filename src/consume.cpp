@@ -105,7 +105,7 @@ Consume::setup(json_t *pjson)
 		if(pmetadata != NULL && result == RdKafka::ErrorCode::ERR_NO_ERROR) {
 			const RdKafka::Metadata::TopicMetadataVector *ptopics = pmetadata->topics();
 			if(ptopics) {
-				std::string comp("__consumer_"); // Don't backup topics that start with this.
+				std::string comp("__"); // Don't backup topics that start with this.
 				auto comp_size = comp.size();
 				RdKafka::Metadata::TopicMetadataIterator itor = ptopics->begin();
 				while(itor != ptopics->end()) {

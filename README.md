@@ -39,7 +39,7 @@ Here's an example:-
 
 ```
 
-Most of this should be self explanitory. If you leave ```kafka.topics``` string array empty ```k3``` will attempt to connect to all topics in the cluster (except ```__consumer_group_n``` internal topics).
+Most of this should be self explanitory. If you leave ```kafka.topics``` string array empty ```k3``` will attempt to connect to all topics in the cluster (except ```__``` prefixed internal topics).
 
 
 ```aws.access_key```: If this is __not__ supplied then the default credential provider will be used in an attempt to discover an IAM role based on the EC2 launch profile.
