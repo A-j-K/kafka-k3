@@ -52,17 +52,19 @@ Consume::topic_excluded(std::string & topic)
 }
 
 void
-Consume::setup(json_t *pjson)
+Consume::setup(json_t *pjson, char **envp)
 {
 	const char *s;
 	std::string errstr;
 	std::vector<std::string> topics;
 
-	setup_exclude_topics(pjson);
-	setup_topics(pjson, topics);
-	setup_general(pjson);
-	setup_default_global_conf(pjson);
-	setup_default_topic_conf(pjson);
+	if(pjson) {
+		setup_exclude_topics(pjson);
+		setup_topics(pjson, topics);
+		setup_general(pjson);
+		setup_default_global_conf(pjson);
+		setup_default_topic_conf(pjson);
+	}
 
 	// Allow ENV vars to override config file if they exist.
 	if((s = std::getenv("KAFKA_GROUP_ID")) != NULL) {
@@ -87,6 +89,27 @@ Consume::setup(json_t *pjson)
 		int i = atoi(s);
 		setMessageBundleLimit(i);
 	}
+
+	// Attempt to find all ENV VARs that begin "RDKAFKA_SET_" and then apply them.
+	// Example: "RDKAFKA_SET_METADATA_BROKER_LIST=foo.com" becomes "metadata.broker.list"
+	// and it's value ::set("metadata.broker.list", "foo.com")
+	if(envp) {
+		std::string comp("RDKAFKA_SETVAR_");
+		for(char **env = envp; *env != 0; env++) {
+			std::string fullenvname(*env);
+			std::string subenvname = fullenvname.substr(0, comp.size());
+			if(subenvname == comp) {
+				std::string envname = fullenvname.substr(comp.size());
+				std::string key = envname.substr(0, envname.find("="));
+				std::string val = envname.substr(key.size()+1);
+				std::replace(key.begin(), key.end(), '_', '.');
+				std::transform(key.begin(), key.end(), key.begin(), ::tolower);
+				if(key.size() > 0 && val.size() > 0) {
+					_pconf->set(key, val, errstr);
+				}
+                        }
+                }
+        }
 
 	_pconf->set("enable.auto.commit", "false", errstr);
 

@@ -83,7 +83,7 @@ S3::createS3ClientEncrypted(const std::string & in_access_key)
 }
 
 void
-S3::setup(json_t *pjson)
+S3::setup(json_t *pjson, char **penv)
 {
 	const char *pe;
 

@@ -1,5 +1,7 @@
 # K3 Write messages from Kafka To AWS S3
 
+From version 1.14 a JSON config file is __not__ mandatory and all setup can be done with ENV VARs (see later).
+
 k3 is configured by a JSON file ```/etc/k3conf.json```.
 
 Here's an example:-
@@ -85,6 +87,14 @@ KAFKA_PASS
 KAFKA_BROKERS
 KAFKA_MESSAGE_BATCHSIZE
 ```
+
+Additionally, ENV VARs defined thus: ```RDKAFKA_SETVAR_*``` will be iterated and applied. For example:-
+
+```
+RDKAFKA_SETVAR_METADATA_BROKER_LIST="kafka-1.example.com:9092,kafka-2.example.com:9092"
+```
+
+This would be seen as ```metadata.broker.list="kafka.example.com:9092"``` and set accordingly.
 
 # Docker
 

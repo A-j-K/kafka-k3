@@ -1,3 +1,10 @@
+1.14
+-- Previously if no JSON conf was found k3backup would terminate. Now, it
+   will continue to run and expect ENV VARs to be setup to provide configuration.
+   This makes it slightly easier to run in enviroments like K8s where building
+   the JSON config was more problematic than just defining ENV VARs. This is a
+   minor improvement.
+
 1.13.1
 -- AWS SDK C++ bump to version 1.4.75
 -- Refactor to create k3backup and k3replay as well as keeping deprecated k3
