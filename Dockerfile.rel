@@ -4,5 +4,7 @@ FROM alpine:3.7
 RUN apk update && apk add openssl bash ca-certificates \
 	&& update-ca-certificates
 COPY --from=SOURCE_IMAGE /usr/bin/k3 /usr/bin/k3
-CMD ["/usr/bin/k3"]
+COPY --from=SOURCE_IMAGE /usr/bin/k3backup /usr/bin/k3backup
+COPY --from=SOURCE_IMAGE /usr/bin/k3replay /usr/bin/k3replay
+CMD ["/usr/bin/k3backup"]
 
