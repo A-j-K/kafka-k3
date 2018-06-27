@@ -2,9 +2,13 @@
 #include "s3.hpp" 
 
 #include <ctime>
+#include <fstream>
 #include <cstdlib>
 
+#include <aws/core/Aws.h>
 #include <aws/core/http/Scheme.h>
+#include <aws/s3/model/GetObjectRequest.h>
+#include <aws/s3/model/ListObjectsRequest.h>
 #include <aws/s3/model/CreateBucketRequest.h>
 #include <aws/core/utils/logging/LogMacros.h>
 #include <aws/s3-encryption/S3EncryptionClient.h>
@@ -164,6 +168,113 @@ S3::put(const char *payload, size_t len,
 	else {
 		AWS_LOGSTREAM_WARN("K3-PUT", 
 			"Failed to PUT, no S3 client defined at line " 
+			<< __LINE__ << " in file " << __FILE__);
+	}
+	return rval;
+}
+
+bool
+S3::list(const std::string & inprefix, std::vector<std::string> & outvlist)
+{
+	bool rval = false;;
+	if(_sp3client.get()) {
+		Aws::S3::Model::ListObjectsRequest request;
+		request.WithBucket(getBucket());
+		if(inprefix.size() > 0) {
+			request.SetPrefix(Aws::String(inprefix));
+		}
+		auto outcome = _sp3client->ListObjects(request);
+		if((rval = outcome.IsSuccess()) == false) {
+			AWS_LOGSTREAM_WARN("K3-LIST",
+				"Error while listing bucket: \"" << getBucket() << "\""
+				<< outcome.GetError().GetExceptionName()
+				<< "; Message: " << outcome.GetError().GetMessage()
+			);
+		}
+		else {
+			Aws::Vector<Aws::S3::Model::Object> list = outcome.GetResult().GetContents();
+			for(auto const & object : list) {
+				outvlist.push_back(std::string(object.GetKey()));
+			}
+			rval = true;
+		}
+	}
+	else {
+		AWS_LOGSTREAM_WARN("K3-LIST", 
+			"Failed to LIST, no S3 client defined at line " 
+			<< __LINE__ << " in file " << __FILE__);
+	}
+	return rval;
+}
+
+bool
+S3::get(const std::string & inkey, std::stringstream & outbuf,
+	Aws::Map<Aws::String, Aws::String> * poutmetadata)
+{
+	bool rval = false;
+	if(_sp3client.get()) {
+		Aws::S3::Model::GetObjectRequest request;
+		request
+			.WithBucket(getBucket())
+			.WithKey(inkey);
+		auto outcome = _sp3client->GetObject(request);
+		if((rval = outcome.IsSuccess()) == false) {
+			AWS_LOGSTREAM_WARN("K3-GET",
+				"Error while getting object from key: \"" << inkey << "\""
+				<< outcome.GetError().GetExceptionName()
+				<< "; Message: " << outcome.GetError().GetMessage()
+			);
+		}
+		else {
+			if(poutmetadata) {
+				*poutmetadata = outcome.GetResult().GetMetadata();
+			}
+			outbuf << outcome.GetResult().GetBody().rdbuf();	
+			rval = true;
+		}
+	}
+	else {
+		AWS_LOGSTREAM_WARN("K3-GET", 
+			"Failed to GET, no S3 client defined at line " 
+			<< __LINE__ << " in file " << __FILE__);
+	}
+	return rval;
+}
+
+bool 
+S3::get(const std::string & inkey, const std::string & infilename,
+	Aws::Map<Aws::String, Aws::String> * poutmetadata)
+{
+	bool rval = false;
+	if(_sp3client.get()) {
+		Aws::S3::Model::GetObjectRequest request;
+		request
+			.WithBucket(getBucket())
+			.WithKey(inkey);
+		auto outcome = _sp3client->GetObject(request);
+		if((rval = outcome.IsSuccess()) == false) {
+			AWS_LOGSTREAM_WARN("K3-GET",
+				"Error while getting object from key: \"" << inkey << "\""
+				<< outcome.GetError().GetExceptionName()
+				<< "; Message: " << outcome.GetError().GetMessage()
+			);
+		}
+		else {
+			Aws::OFStream f;
+			if(poutmetadata) {
+				*poutmetadata = outcome.GetResult().GetMetadata();
+			}
+			f.open(infilename.c_str(), std::ios::out | std::ios::binary);
+			if(f.is_open()) {
+				f << outcome.GetResult().GetBody().rdbuf();
+				f.close();
+				rval = true;
+			}
+		}
+	}
+	else {
+		AWS_LOGSTREAM_WARN("K3-GET", 
+			"Failed to GET, no S3 client defined at line " 
 			<< __LINE__ << " in file " << __FILE__);
 	}
 	return rval;

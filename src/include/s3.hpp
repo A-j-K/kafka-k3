@@ -60,6 +60,15 @@ public:
 	virtual bool put(const char *payload, size_t len,  
 		const std::string & s3key,
 	        const Utils::Metadata & metadata);
+
+	virtual bool list(const std::string &, std::vector<std::string> &);
+
+	virtual bool get(const std::string & inkey, std::stringstream & outstream,
+			Aws::Map<Aws::String, Aws::String> * meta = NULL);
+
+	virtual bool get(const std::string & inkey, const std::string & infilename,
+			Aws::Map<Aws::String, Aws::String> * meta = NULL);
+
 };
 
 }; // namespace K3
