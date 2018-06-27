@@ -55,7 +55,7 @@ public:
 	virtual const Aws::String getAccessKey()& { return _access_key; }
 	virtual const Aws::String getSecretKey()& { return _secret_key; }
 
-	virtual void setup(json_t*);
+	virtual void setup(json_t*, char **envp = NULL);
 
 	virtual bool put(const char *payload, size_t len,  
 		const std::string & s3key,

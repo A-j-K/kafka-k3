@@ -122,7 +122,7 @@ public:
 		return *this;
 	}
 
-	virtual void setup(json_t*);
+	virtual void setup(json_t*, char **envp = NULL);
 	virtual int run(bool *);
 
 protected:
