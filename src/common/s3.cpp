@@ -174,12 +174,20 @@ S3::put(const char *payload, size_t len,
 }
 
 bool
-S3::list(const std::string & inprefix, std::vector<std::string> & outvlist)
+S3::list(const std::string & inprefix, std::vector<std::string> & outvlist, 
+	int inmaxkeys, std::string *inpfrom)
 {
 	bool rval = false;;
 	if(_sp3client.get()) {
 		Aws::S3::Model::ListObjectsRequest request;
 		request.WithBucket(getBucket());
+		if(inpfrom != NULL) {
+			Aws::String marker = *inpfrom;
+			request.SetMarker(marker);
+		}
+		if(inmaxkeys > 0) {
+			request.SetMaxKeys(inmaxkeys);
+		}
 		if(inprefix.size() > 0) {
 			request.SetPrefix(Aws::String(inprefix));
 		}
