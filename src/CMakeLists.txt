@@ -10,6 +10,7 @@ SET(k3_SRCS
 	common/awsguard.cpp
 	common/kafkaconf.cpp
 	common/memchecker.cpp
+	common/messagetime.cpp
 	common/messagewrapper.cpp
 )
 

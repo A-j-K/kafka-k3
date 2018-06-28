@@ -61,7 +61,9 @@ public:
 		const std::string & s3key,
 	        const Utils::Metadata & metadata);
 
-	virtual bool list(const std::string &, std::vector<std::string> &);
+	virtual bool list(const std::string &, std::vector<std::string> &, 
+			int inmaxkeys = 0,
+			std::string *inpfrom = NULL);
 
 	virtual bool get(const std::string & inkey, std::stringstream & outstream,
 			Aws::Map<Aws::String, Aws::String> * meta = NULL);
