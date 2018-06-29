@@ -46,6 +46,7 @@ struct MessageHeaderDetails
 #pragma pack(push, 1)
 struct MessageHeader
 {
+	typedef std::shared_ptr<MessageHeader> ShPtr;
 	const static int HeaderSize = 1024;
 	const static int KeyMaxLen = 128;
 	const static int TopicMaxLen = (HeaderSize - sizeof(MessageHeaderDetails) - KeyMaxLen);
