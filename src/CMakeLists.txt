@@ -8,6 +8,7 @@ SET(k3_SRCS
 	common/utils.cpp
 	common/consume.cpp
 	common/awsguard.cpp
+	common/checksum.cpp
 	common/kafkaconf.cpp
 	common/memchecker.cpp
 	common/messagetime.cpp

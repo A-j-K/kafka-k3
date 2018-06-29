@@ -9,11 +9,12 @@
 #include <librdkafka/rdkafkacpp.h>
 
 #include "s3.hpp"
+#include "checksum.hpp"
 #include "messagewrapper.hpp"
 
 namespace K3 { 
 
-class Consume 
+class Consume : public Checksum
 {
 public:
 	typedef std::vector<MessageWrapper::ShPtr> MessageVector;
@@ -128,8 +129,6 @@ public:
 protected:
 
 	virtual size_t messagesSize(MessageVector&);
-
-	virtual int64_t messageChecksum(const char *, size_t);
 
 	virtual void run_once();
 	virtual void stash_all();
