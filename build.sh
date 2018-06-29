@@ -42,8 +42,11 @@ else
 echo "Short build..."
 fi
 docker build -f Dockerfile.app --tag k3:app . \
-&& docker build -f Dockerfile.rel --tag k3:rel-${VER} . \
-&& echo "docker tag k3:rel-${VER} andykirkham/kafka-k3:${VER}" \
-&& echo "docker push andykirkham/kafka-k3:${VER}" 
+&& docker build -f Dockerfile.k3backup.rel --tag k3:backup-rel-${VER} . \
+&& echo "docker tag k3:rel-${VER} andykirkham/kafka-k3:backup-${VER}" \
+&& echo "docker push andykirkham/kafka-k3:backup-${VER}" \
+&& docker build -f Dockerfile.k3replay.rel --tag k3:replay-rel-${ver} . \
+&& echo "docker tag k3:replay-rel-${VER} andykirkham/kafka-k3:replay-${VER}" \
+&& echo "docker push andykirkham/kafka-k3:replay-${VER}"
 
 

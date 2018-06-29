@@ -14,9 +14,9 @@ namespace K3 {
 // 2018-06-27-14-11-53.4120850916
 
 MessageTime::MessageTime():
-	year(0),
-	month(0),
-	day(0),
+	year(1970),
+	month(1),
+	day(1),
 	hour(0),
 	minute(0),
 	second(0),
@@ -27,18 +27,32 @@ MessageTime::MessageTime(const std::string & in)
 {
 	std::string t;
 	clear();
+	int len = in.size();
+	if(len < 4) return;
 	t = in.substr(0, 4);
 	if(t.size() > 0) year   = atoi(t.c_str());
+
+	if(len < 7) return;
 	t = in.substr(5, 2);
 	if(t.size() > 0) month  = atoi(t.c_str()); else month = 1;
+
+	if(len < 10) return;
 	t = in.substr(8, 2);
 	if(t.size() > 0) day    = atoi(t.c_str()); else day = 1;
+
+	if(len < 13) return;
 	t = in.substr(11, 2);
 	if(t.size() > 0) hour   = atoi(t.c_str());
+
+	if(len < 16) return;
 	t = in.substr(14, 2);
 	if(t.size() > 0) minute = atoi(t.c_str());
+
+	if(len < 19) return;
 	t = in.substr(17, 2);
 	if(t.size() > 0) second = atoi(t.c_str());
+
+	if(len < 20) return;
 	t = in.substr(19);
 	if(t.size() > 0) {
 		frac   = atof(t.c_str());
@@ -49,9 +63,9 @@ MessageTime::MessageTime(const std::string & in)
 void
 MessageTime::clear()
 {
-	year = 0;
-	month = 0;
-	day = 0;
+	year = 1970;
+	month = 1;
+	day = 1;
 	hour = 0;
 	minute = 0;	
 	second = 0;
