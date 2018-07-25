@@ -20,7 +20,9 @@ Here's an example:-
         "kafka": {
 		"general": {
 			"batchsize": 100,
-			"binsize": 10000000
+			"binsize": 10000000,
+			"auto_discover_topics": false,
+			"auto_discover_interval": 60
 		},
                 "topics": [
                 ],
@@ -59,6 +61,10 @@ If the config item is missing no encryption is used. If you specify an AWS KMS A
 ```general.binsize``` as the number of messages in teh pipe grow (to place multiple messages in a single S3 PUT) limit the size it can grow to until an S3 PUT is forced regardless.
 
 ```general.collecttime_ms``` as the number of messages in the pipe grow (to place multiple messages in a single S3 PUT) how long to wait before an S3 PUT is forced regardless (time in milliseconds).
+
+```general.auto_discover_topics``` is a boolean indicating if topics should be persistently auto-discovered. Defaults to false.
+
+```general.auto_discover_interval``` is an int indicating how long (in seconds) to wait until trying to auto-discover new topics. Defaults to 60.
 
 ```kafka.exclude_topics```: Array of strings of topics to exclude from dumping. Wildcards are supported, for example ```test*```.
 

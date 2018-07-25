@@ -30,11 +30,13 @@ protected:
 	int			_message_bundle_size;
 	int			_message_bundle_limit;
 	int			_consume_wait_time;
-
+	int			_auto_discover_interval = 60;
+	bool			_auto_discover_topics = false;
 	bool			_rebalance_called;
 	double			_mem_percent;
 
 	std::vector<std::string>	_exclude_topics;
+	std::vector<std::string>	_topics;
 
 	MessageMap 	_messages;
 	MessageMapSize	_messageSizes;
@@ -42,11 +44,14 @@ protected:
 	virtual bool 
 	topic_excluded(std::string & topic);
 
+	virtual bool
+	topic_already_in_subscriptions(const std::string & topic);
+
 	virtual void
 	setup_exclude_topics(json_t*);
 
 	virtual void
-	setup_topics(json_t*, std::vector<std::string>&);
+	setup_topics(json_t*);
 
 	virtual void
 	setup_general(json_t*);
@@ -57,9 +62,32 @@ protected:
 	virtual void
 	setup_default_topic_conf(json_t*);
 
+	virtual void
+	auto_discover_topics();
+
 public:
 	Consume();
 	virtual ~Consume();
+
+	virtual Consume&
+	setAutoDiscoverTopics(bool auto_discover_topics) {
+		_auto_discover_topics = auto_discover_topics;
+		return *this;
+	}
+
+	virtual bool
+	getAutoDiscoverTopics() {
+		return _auto_discover_topics;
+	}
+
+	virtual Consume& setAutoDiscoverInterval(int auto_discover_interval) {
+		_auto_discover_interval = auto_discover_interval;
+		return *this;
+	}
+
+	virtual int getAutoDiscoverInterval() {
+		return _auto_discover_interval;
+	}
 
 	virtual Consume&
 	setLogStream(std::ostream *pstream) {

@@ -1,3 +1,6 @@
+1.15
+-- Added automated discovery for topics. Thanks Georgi :)
+
 1.14
 -- Previously if no JSON conf was found k3backup would terminate. Now, it
    will continue to run and expect ENV VARs to be setup to provide configuration.

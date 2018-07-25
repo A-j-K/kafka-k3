@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <stdexcept>
 #include <exception>
+#include <chrono>
 
 #include "utils.hpp"
 #include "consume.hpp"
@@ -51,16 +52,29 @@ Consume::topic_excluded(std::string & topic)
 	return false;
 }
 
+bool
+Consume::topic_already_in_subscriptions(const std::string & topic)
+{
+	auto itor = _topics.begin();
+	while(itor != _topics.end()) {
+		if(Utils::strcmp(*itor, topic)) {
+			return true;
+		}
+		itor++;
+	}
+	return false;
+}
+
+
 void
 Consume::setup(json_t *pjson, char **envp)
 {
 	const char *s;
 	std::string errstr;
-	std::vector<std::string> topics;
 
 	if(pjson) {
 		setup_exclude_topics(pjson);
-		setup_topics(pjson, topics);
+		setup_topics(pjson);
 		setup_general(pjson);
 		setup_default_global_conf(pjson);
 		setup_default_topic_conf(pjson);
@@ -121,51 +135,23 @@ Consume::setup(json_t *pjson, char **envp)
 		);
 	}
 
-	if(topics.size() < 1) {
-		// Attempt auto discovery of topics.
-		RdKafka::Metadata *pmetadata = NULL;
-		auto result = _pconsumer->metadata(true, NULL, &pmetadata, 10000);
-		if(pmetadata != NULL && result == RdKafka::ErrorCode::ERR_NO_ERROR) {
-			const RdKafka::Metadata::TopicMetadataVector *ptopics = pmetadata->topics();
-			if(ptopics) {
-				std::string comp("__"); // Don't backup topics that start with this.
-				auto comp_size = comp.size();
-				RdKafka::Metadata::TopicMetadataIterator itor = ptopics->begin();
-				while(itor != ptopics->end()) {
-					auto ptopic = *itor;
-					auto t = ptopic->topic();
-					auto s = t.substr(0, comp_size);
-					if(s != comp && !topic_excluded(t)) {
-						topics.push_back(t);
-					}
-					itor++;
-				}
+	if(!getAutoDiscoverTopics()) {
+		if (_topics.size() > 0) {
+			auto itor = _topics.begin();
+			*_plog << "Subscribing to topics:-" << std::endl;
+			while(itor != _topics.end()) {
+				*_plog << "   " << *itor << std::endl;
+				itor++;
 			}
+			_pconsumer->subscribe(_topics);
 		}
-		if(result != RdKafka::ErrorCode::ERR_NO_ERROR) {
-			*_plog << "Failed during metadata request to discover topics" << std::endl;
+		else {
+			throw std::invalid_argument(
+				stringbuilder()
+				<< "No topics provided or discovered at "
+				<< __LINE__ << " in function " << __FUNCTION__
+			); 
 		}
-		if(pmetadata != NULL) {
-			delete pmetadata;
-		}
-	}
-
-	if(topics.size() > 0) {
-		auto itor = topics.begin();
-		*_plog << "Subscribing to topics:-" << std::endl;
-		while(itor != topics.end()) {
-			*_plog << "   " << *itor << std::endl;
-			itor++;
-
-		}
-		_pconsumer->subscribe(topics);
-	}
-	else {
-		throw std::invalid_argument(
-			stringbuilder()
-			<< "No topics provided or discovered at "
-			<< __LINE__ << " in function " << __FUNCTION__
-		); 
 	}
 }
 
@@ -198,13 +184,15 @@ Consume::run(bool *loop_control)
 {
 	int mem_test_counter = 0;
 	MemChecker mem(_mem_percent);
+	auto previous_time = std::chrono::system_clock::now();
 	while(*loop_control != false) {
-		if(false && _rebalance_called) {
-			// Actually, this is a bad thing to do because a rebalance will
-			// happen if one of the k3 instances is restarted by K8s or a mem
-			// failure. So we need to be smarter here about discovering new topics.
-			*_plog << "Kafka rebalance took place, restarting..." << std::endl;
-			return 2;
+		if(getAutoDiscoverTopics()) {
+			auto current_time = std::chrono::system_clock::now();
+			std::chrono::duration<double> time_elapsed_since_last_auto_discover = current_time - previous_time;
+			if(time_elapsed_since_last_auto_discover.count() > getAutoDiscoverInterval() ) {
+				auto_discover_topics();
+				previous_time = std::chrono::system_clock::now();
+			}
 		}
 		if(++mem_test_counter > 30) {
 			mem_test_counter = 0;
@@ -339,6 +327,49 @@ Consume::stash_by_topic(const char *topic, MessageVector &messages)
 }
 
 void
+Consume::auto_discover_topics() 
+{
+	bool topics_updated = false;
+	RdKafka::Metadata *pmetadata = NULL;
+	auto result = _pconsumer->metadata(true, NULL, &pmetadata, 10000);
+	*_plog << "Auto-discovering topics" << std::endl;
+	if(pmetadata != NULL && result == RdKafka::ErrorCode::ERR_NO_ERROR) {
+		const RdKafka::Metadata::TopicMetadataVector *ptopics = pmetadata->topics();
+		if(ptopics) {
+			std::string comp("__"); // Don't backup topics that start with this.
+			auto comp_size = comp.size();
+			RdKafka::Metadata::TopicMetadataIterator itor = ptopics->begin();
+			while(itor != ptopics->end()) {
+				auto ptopic = *itor;
+				auto t = ptopic->topic();
+				auto s = t.substr(0, comp_size);
+				if(s != comp && !topic_excluded(t) && !topic_already_in_subscriptions(t)) {
+					_topics.push_back(t);
+					topics_updated = true;
+					*_plog << "New topic found: " << t << std::endl;
+				}
+				itor++;
+			}
+		}
+	}
+
+	if(topics_updated) {
+		_pconsumer->subscribe(_topics);
+	} 
+	else {
+		*_plog << "No new topics" << std::endl;
+	}
+
+	if(result != RdKafka::ErrorCode::ERR_NO_ERROR) {
+		*_plog << "Failed during metadata request to discover topics" << std::endl;
+	}
+
+	if(pmetadata != NULL) {
+		delete pmetadata;
+	}
+}
+
+void
 Consume::setup_exclude_topics(json_t *pjson)
 {
 	auto p = json_object_get(pjson, "exclude_topics");
@@ -361,7 +392,7 @@ Consume::setup_exclude_topics(json_t *pjson)
 }
 
 void
-Consume::setup_topics(json_t *pjson, std::vector<std::string> & topics)
+Consume::setup_topics(json_t *pjson)
 {
 	auto p = json_object_get(pjson, "topics");
 	if(p && json_is_array(p)) {
@@ -371,7 +402,7 @@ Consume::setup_topics(json_t *pjson, std::vector<std::string> & topics)
 			if(json_is_string(pval)) {
 				std::string str_topic(json_string_value(pval));
 				if(!topic_excluded(str_topic)) {
-					topics.push_back(str_topic);
+					_topics.push_back(str_topic);
 				}
 			}
 			else if(json_is_object(pval)) {
@@ -379,7 +410,7 @@ Consume::setup_topics(json_t *pjson, std::vector<std::string> & topics)
 				if(pname) {
 					std::string str_topic(json_string_value(pname));
 					if(!topic_excluded(str_topic)) {
-						topics.push_back(str_topic);
+						_topics.push_back(str_topic);
 					}
 				}
 			}
@@ -414,6 +445,16 @@ Consume::setup_general(json_t *pjson)
 				if(percent < 1) {
 					setMemPercent(percent);
 				}
+			}
+		}
+		if((ptemp = json_object_get(p, "auto_discover_topics"))) {
+			if(json_is_true(ptemp)) {
+				setAutoDiscoverTopics(true);
+			}
+		}
+		if((ptemp = json_object_get(p, "auto_discover_interval"))) {
+			if(json_is_integer(ptemp)) {
+				setAutoDiscoverInterval(json_integer_value(ptemp));
 			}
 		}
 	}
