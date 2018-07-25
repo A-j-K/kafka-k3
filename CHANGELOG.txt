@@ -1,3 +1,6 @@
+1.16
+-- Update AWS SDK to version 1.4.93
+
 1.15
 -- Added automated discovery for topics. Thanks Georgi :)
 
