@@ -5,6 +5,7 @@ set -e
 AWS_SDK_CPP_VER_MAJOR="1"
 AWS_SDK_CPP_VER_MINOR="4"
 AWS_SDK_CPP_VER_PATCH="75"
+AWS_SDK_CPP_VER="${AWS_SDK_CPP_VER_MAJOR}.${AWS_SDK_CPP_VER_MINOR}.${AWS_SDK_CPP_VER_PATCH}"
 
 VER=`head -1 CHANGELOG.txt`
 
@@ -45,7 +46,7 @@ docker build -f Dockerfile.app --tag k3:app . \
 && docker build -f Dockerfile.k3backup.rel --tag k3:backup-rel-${VER} . \
 && echo "docker tag k3:rel-${VER} andykirkham/kafka-k3:backup-${VER}" \
 && echo "docker push andykirkham/kafka-k3:backup-${VER}" \
-&& docker build -f Dockerfile.k3replay.rel --tag k3:replay-rel-${ver} . \
+&& docker build -f Dockerfile.k3replay.rel --tag k3:replay-rel-${VER} . \
 && echo "docker tag k3:replay-rel-${VER} andykirkham/kafka-k3:replay-${VER}" \
 && echo "docker push andykirkham/kafka-k3:replay-${VER}"
 

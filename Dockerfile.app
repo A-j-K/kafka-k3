@@ -3,7 +3,7 @@ FROM k3:dev
  
 COPY . /buildspace
 RUN	cd /buildspace && mkdir build && cd build \
-	&& cmake .. && make VERBOSE=1 \
+	&& cmake .. -DBUILD_DEBUG="yes" && make VERBOSE=1 \
 	&& cp main/k3 /usr/bin/k3 \
 	&& cp k3backup/k3backup /usr/bin/k3backup \
 	&& cp k3replay/k3replay /usr/bin/k3replay \
