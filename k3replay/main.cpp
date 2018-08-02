@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <algorithm>
 
+#include <ctype.h>
 #include <sys/stat.h>
 
 #include <jansson.h>
@@ -18,18 +19,27 @@
 #include "messagetime.hpp"
 #include "messagewrapper.hpp"
 
+#define TMP_DIR "/tmp"
+
 static bool run_system;
 
 typedef std::string DiscoveryTimestamp;
 
 struct DiscoveryItem
 {
+	typedef std::shared_ptr<char> ShPtr;
 	DiscoveryItem() { memset(this, 0, sizeof(DiscoveryItem)); };
 	~DiscoveryItem() {}
 	DiscoveryItem(const DiscoveryItem &other) { memcpy(this, &other, sizeof(DiscoveryItem)); }
 	int64_t			_timestamp;
 	std::string		_s3key;
 	char			_header[sizeof(K3::MessageHeader)];
+	ShPtr 			_payload;
+	void setpayload(char *p, int l) {
+		char *np = new char[l];
+		_payload = ShPtr(np);
+		memcpy(np, p, l);
+	}
 };
 
 typedef std::map<DiscoveryTimestamp, DiscoveryItem> DiscoveryMap;
@@ -67,7 +77,7 @@ main(int argc, char *argv[], char **envp)
 	K3::AwsGuard aws(paws);
 	K3::S3 s3client;
 	//K3::MessageTime from("2018-01-01-00-00-00.0");
-	K3::MessageTime from("2018-07-20-12");
+	K3::MessageTime from("2018-08-01-18");
 	s3client.setup(paws, envp);
 
 	if((ptopic = std::getenv("AWS_TOPIC")) == NULL) {
@@ -93,6 +103,27 @@ main(int argc, char *argv[], char **envp)
 	return rval;
 }
 
+static std::string
+hexdump_line(char *p, int l) 
+{
+	std::stringstream rval;
+	rval << std::setw(2) << std::hex << "    ";
+	for(int i = 0; i < 16 && i < l; ++i) {
+		unsigned c = (unsigned)((*(p+i)) & 0xFF);
+		rval.width(2);
+		rval.fill('0');
+		rval << std::hex << std::uppercase << c << " ";
+		if(((i+1)%8) == 0) rval << " ";
+	}
+	rval << " :: ";
+	for(int i = 0; i < 16 && i < l; ++i) {
+		char c = *(p+i);
+		if(!isprint(c)) c = '.';
+		rval << c;	
+	}
+	return rval.str();
+}
+
 static void
 process_event(K3::S3 & ins3client, const std::string & index, DiscoveryItem & event_item)
 {
@@ -109,6 +140,77 @@ process_event(K3::S3 & ins3client, const std::string & index, DiscoveryItem & ev
 		std::cout << "   payload_len: " << pheader->details.payload_len << std::endl;
 		std::cout << "   batch index: " << pheader->details.index << std::endl;
 		std::cout << "   checksum   : 0x" << std::setfill('0') << std::setw(2) << std::hex << pheader->details.csum << std::endl;
+		std::cout << "   payload    : ";
+
+		if(pheader->details.payload_len > 0 && event_item._payload.get() != NULL) {
+			int offset = 0;
+			while(offset < pheader->details.payload_len) {
+				int i = (offset+16 > pheader->details.payload_len) ? pheader->details.payload_len-offset : 16;
+				std::string s = hexdump_line(event_item._payload.get()+offset, i);	
+				std::cout << std::endl << s;
+				offset += i;
+			}
+			std::cout << std::endl;
+		}
+		else {
+			std::cout << "NULL" << std::endl;
+		}
+		
+}
+
+static void
+batch_discovery_bykey(const std::string & inkey, const std::string & intopic,
+	K3::S3 & ins3client, DiscoveryMap & output, bool indelete)
+{
+	std::stringstream s3path;
+	Aws::Map<Aws::String, Aws::String> metadata;
+	std::stringstream local_target;
+	local_target << TMP_DIR << "/" << inkey;
+	ins3client.get(inkey, local_target.str(), &metadata);
+	std::ifstream file(local_target.str().c_str(), std::ios::binary | std::ios::ate);
+	if(file.is_open()) {
+		std::streamsize size = file.tellg() * 2;
+		file.seekg(0, std::ios::beg);
+		std::vector<char> buffer(size);
+		file.read(buffer.data(), size);
+		file.close();
+		if(size < sizeof(K3::MessageHeader)) {
+			std::cout << "File " << local_target.str() << " incorrect size " << size << std::endl;
+		}
+		else {
+			void *offset;
+			char *p = (char*)buffer.data();
+			K3::MessageHeader *pbase = (K3::MessageHeader*)buffer.data();
+			for(int nummsgs = pbase->details.index + 1; nummsgs; nummsgs--) {
+				K3::MessageHeader *pheader = (K3::MessageHeader*)p;
+				std::cout << nummsgs << " " << inkey << std::endl;
+				if(pheader->details.timestamp) {
+					std::stringstream oss;
+					DiscoveryItem item;
+					oss << pheader->details.timestamp << "." << pheader->details.offset;
+					item._timestamp = pheader->details.timestamp;
+					item._s3key = inkey;
+					memcpy(&item._header[0], p, sizeof(K3::MessageHeader));
+					if(pheader->details.payload_len) {
+						char *p1 = (char*)buffer.data();
+						char *payload = p1 + sizeof(K3::MessageHeader); 
+						item.setpayload(payload, pheader->details.payload_len);
+					}
+					output[oss.str()] = item; // order by timestamp
+				}
+				else {
+					std::cout << "Warning, " << inkey << " has a zero timestamp." << std::endl;
+				}
+				p += (sizeof(K3::MessageHeader) + pheader->details.payload_len);
+			}
+		}
+		if(indelete) {
+			std::remove(local_target.str().c_str());
+		}
+	}
+	else {
+		std::cout << "Failed to open file: " << local_target.str() << std::endl;
+	}
 }
 
 static void
@@ -116,50 +218,8 @@ batch_discovery(const std::string & intopic, const std::vector<std::string> & in
 	K3::S3 & ins3client, DiscoveryMap & output, bool indelete)
 {
 	for(auto itor = inkeys.begin(); itor != inkeys.end(); itor++) {
-		std::stringstream s3path;
-		Aws::Map<Aws::String, Aws::String> metadata;
-		std::stringstream local_target;
-		local_target << "/tmp/" << *itor;
-		ins3client.get(*itor, local_target.str(), &metadata);
-		std::ifstream file(local_target.str().c_str(), std::ios::binary | std::ios::ate);
-		if(file.is_open()) {
-			std::streamsize size = file.tellg() * 2;
-			file.seekg(0, std::ios::beg);
-			std::vector<char> buffer(size);
-			file.read(buffer.data(), size);
-			file.close();
-			if(size < sizeof(K3::MessageHeader)) {
-				std::cout << "File " << local_target.str() << " incorrect size " << size << std::endl;
-			}
-			else {
-				void *offset;
-				char *p = (char*)buffer.data();
-				K3::MessageHeader *pbase = (K3::MessageHeader*)buffer.data();
-				for(int nummsgs = pbase->details.index + 1; nummsgs; nummsgs--) {
-					K3::MessageHeader *pheader = (K3::MessageHeader*)p;
-					std::cout << nummsgs << " " << *itor << " p: " << p << std::endl;
-					if(pheader->details.timestamp) {
-						std::stringstream oss;
-						DiscoveryItem item;
-						oss << pheader->details.timestamp << "." << pheader->details.offset;
-						item._timestamp = pheader->details.timestamp;
-						item._s3key = *itor;
-						memcpy(&item._header[0], p, sizeof(K3::MessageHeader));
-						output[oss.str()] = item; // order by timestamp
-					}
-					else {
-						std::cout << "Warning, " << *itor << " has a zero timestamp." << std::endl;
-					}
-					p += (sizeof(K3::MessageHeader) + pheader->details.payload_len);
-				}
-			}
-			if(indelete) {
-				std::remove(local_target.str().c_str());
-			}
-		}
-		else {
-			std::cout << "Failed to open file: " << local_target.str() << std::endl;
-		}
+		std::string key = *itor;
+		batch_discovery_bykey(key, intopic, ins3client, output, indelete);
 	}
 }
 
