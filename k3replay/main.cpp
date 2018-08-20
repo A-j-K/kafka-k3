@@ -14,6 +14,7 @@
 #include <jansson.h>
 
 #include "s3.hpp"
+#include "produce.hpp"
 #include "awsguard.hpp"
 #include "iosguard.hpp"
 #include "messagetime.hpp"
@@ -22,6 +23,8 @@
 #define TMP_DIR "/tmp"
 
 static bool run_system;
+
+static bool debug_output = true;
 
 typedef std::string DiscoveryTimestamp;
 
@@ -56,7 +59,7 @@ static void
 batch_discovery(const std::string & intopic, const std::vector<std::string> & inkeys,
         K3::S3 & ins3client, DiscoveryMap & output, bool indelete);
 static void
-process_event(K3::S3 & ins3client, const std::string &, DiscoveryItem & event_item);
+process_event(K3::S3 & ins3client, const std::string &, DiscoveryItem & event_item, K3::Produce & prod);
 
 /* Main */
 
@@ -77,7 +80,7 @@ main(int argc, char *argv[], char **envp)
 	K3::AwsGuard aws(paws);
 	K3::S3 s3client;
 	//K3::MessageTime from("2018-01-01-00-00-00.0");
-	K3::MessageTime from("2018-08-01-18");
+	K3::MessageTime from("2018-08-16-09");
 	s3client.setup(paws, envp);
 
 	if((ptopic = std::getenv("AWS_TOPIC")) == NULL) {
@@ -94,8 +97,11 @@ main(int argc, char *argv[], char **envp)
 	batch_discovery(ptopic, vlist, s3client, vmap, false);
 	std::cout << "Batch discovered S3 keys: " << vmap.size() << std::endl;
 
+	K3::Produce p(envp);
+	p.setup();
+
 	for(auto itor = vmap.begin(); itor != vmap.end(); itor++) {
-		process_event(s3client, itor->first, itor->second);
+		process_event(s3client, itor->first, itor->second, p);
 	}
 
 	json_decref(paws);
@@ -125,37 +131,45 @@ hexdump_line(char *p, int l)
 }
 
 static void
-process_event(K3::S3 & ins3client, const std::string & index, DiscoveryItem & event_item)
+process_event(K3::S3 & ins3client, const std::string & index, DiscoveryItem & event_item, K3::Produce & p)
 {
-		K3::IosGuard guard(std::cout);
 		K3::MessageHeader *pheader = 
 			reinterpret_cast<K3::MessageHeader*>(&event_item._header[0]);
-		std::cout << "Index: " << index << std::endl;
-		std::cout << "   timestamp  : " << event_item._timestamp << std::endl;
-		std::cout << "   s3key      : " << event_item._s3key << std::endl;
-		std::cout << "   kafka key  : " << pheader->key_field << std::endl;
-		std::cout << "   kafka topic: " << pheader->topic_name << std::endl;
-		std::cout << "   partition  : " << pheader->details.partition << std::endl;
-		std::cout << "   offset     : " << pheader->details.offset << std::endl;
-		std::cout << "   payload_len: " << pheader->details.payload_len << std::endl;
-		std::cout << "   batch index: " << pheader->details.index << std::endl;
-		std::cout << "   checksum   : 0x" << std::setfill('0') << std::setw(2) << std::hex << pheader->details.csum << std::endl;
-		std::cout << "   payload    : ";
+		if(debug_output) {
+			K3::IosGuard guard(std::cout);
+			std::cout << "Index: " << index << std::endl;
+			std::cout << "   timestamp  : " << event_item._timestamp << std::endl;
+			std::cout << "   s3key      : " << event_item._s3key << std::endl;
+			std::cout << "   kafka key  : " << pheader->key_field << std::endl;
+			std::cout << "   kafka topic: " << pheader->topic_name << std::endl;
+			std::cout << "   partition  : " << pheader->details.partition << std::endl;
+			std::cout << "   offset     : " << pheader->details.offset << std::endl;
+			std::cout << "   payload_len: " << pheader->details.payload_len << std::endl;
+			std::cout << "   batch index: " << pheader->details.index << std::endl;
+			std::cout << "   checksum   : 0x" << std::setfill('0') << std::setw(2) << std::hex << pheader->details.csum << std::endl;
+			std::cout << "   payload    : ";
 
-		if(pheader->details.payload_len > 0 && event_item._payload.get() != NULL) {
-			int offset = 0;
-			while(offset < pheader->details.payload_len) {
-				int i = (offset+16 > pheader->details.payload_len) ? pheader->details.payload_len-offset : 16;
-				std::string s = hexdump_line(event_item._payload.get()+offset, i);	
-				std::cout << std::endl << s;
-				offset += i;
+			if(pheader->details.payload_len > 0 && event_item._payload.get() != NULL) {
+				int offset = 0;
+				while(offset < pheader->details.payload_len) {
+					int i = (offset+16 > pheader->details.payload_len) ? pheader->details.payload_len-offset : 16;
+					std::string s = hexdump_line(event_item._payload.get()+offset, i);	
+					std::cout << std::endl << s;
+					offset += i;
+				}
+				std::cout << std::endl;
+				std::cout << "Producing event to topic" << std::endl;
+				p.produce(
+					event_item._payload.get(),
+					pheader->details.payload_len,
+					pheader->key_field,
+					strlen(pheader->key_field)
+				);
 			}
-			std::cout << std::endl;
+			else {
+				std::cout << "NULL" << std::endl;
+			}
 		}
-		else {
-			std::cout << "NULL" << std::endl;
-		}
-		
 }
 
 static void

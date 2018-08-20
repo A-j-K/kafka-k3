@@ -7,6 +7,7 @@ SET(k3_SRCS
 	common/s3.cpp
 	common/utils.cpp
 	common/consume.cpp
+	common/produce.cpp
 	common/awsguard.cpp
 	common/checksum.cpp
 	common/kafkaconf.cpp

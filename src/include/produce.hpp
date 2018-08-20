@@ -8,31 +8,26 @@
 #include <jansson.h>
 #include <librdkafka/rdkafkacpp.h>
 
-#include "s3.hpp"
+#include "checksum.hpp"
 #include "messagewrapper.hpp"
 
 namespace K3 { 
 
-class Produce 
+class Produce : public Checksum
 {
 protected:
-	S3			*_ps3;
 	std::ostream    	*_plog;
         RdKafka::Conf		*_pconf;
+	RdKafka::Topic 		*_ptopic;
+	RdKafka::Producer 	*_pproducer;
 
-	const char 		**_ppenv;
+	char 			**_ppenv = NULL;
+	std::string		_target_topic;
+	int32_t			_partition_dst;
 	
-	virtual void
-	setup_general(json_t*);
-
-	virtual void
-	setup_default_global_conf(json_t*);
-
-	virtual void
-	setup_default_topic_conf(json_t*);
-
 public:
 	Produce();
+	Produce(char **envp);
 	virtual ~Produce();
 
 	virtual Produce&
@@ -41,33 +36,14 @@ public:
 		return *this;
 	}
 
-	virtual Produce&
-	setS3client(S3 *p) {
-		_ps3 = p;
-		return *this;
-	}
+	virtual int32_t
+	get_dst_partition() { return _partition_dst; }
 
-	virtual S3*
-	getS3client() {
-		return _ps3;
-	}
+	virtual int
+	produce(void *inp, size_t inlen, const void *inkey, size_t inkeylen, int32_t in_partition = RdKafka::Topic::PARTITION_UA);
 
-	virtual double
-	getMemPercent() {
-		return _mem_percent;
-	}
-
-	virtual Produce&
-	setMemPercent(double d) {
-		_mem_percent = d;
-		return *this;
-	}
-
-	virtual void setup(json_t*, char **envp = NULL);
-
-protected:
-
-	virtual int64_t messageChecksum(const char *, size_t);
+	virtual void 
+	setup(json_t *pjson = NULL, char **envp = NULL);
 
 };
 
