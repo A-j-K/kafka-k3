@@ -1,3 +1,6 @@
+1.16.2
+-- Added missing FROM_TIME env var
+
 1.16.1
 -- Downgraded AWS SDK to version 1.4.75  Somewhere along the way they have
    changed the ctor prototype for the encyrpted S3 client and the way the

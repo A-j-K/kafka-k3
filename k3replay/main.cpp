@@ -54,7 +54,7 @@ static std::string cleanup_name(const std::string & inprefix, const std::string 
 static void
 s3_discovery(const std::string & intopic, const K3::MessageTime & infrom,
 	K3::S3 & ins3client, std::vector<std::string> & output,
-	int infetch = 10);
+	int infetch = 50);
 static void
 batch_discovery(const std::string & intopic, const std::vector<std::string> & inkeys,
         K3::S3 & ins3client, DiscoveryMap & output, bool indelete);
@@ -67,6 +67,7 @@ int
 main(int argc, char *argv[], char **envp)
 {
 	int rval = 1;
+	char *from_time = NULL;
 	json_t *paws = json_object();
 	json_object_set_new(paws, "loglevel", json_string("debug"));
 	const char *ptopic;
@@ -74,19 +75,27 @@ main(int argc, char *argv[], char **envp)
 	std::vector<std::string> vlist;
 	DiscoveryMap vmap;
 
-	signal(SIGINT,  sigterm);
-	signal(SIGTERM, sigterm);
 
-	K3::AwsGuard aws(paws);
-	K3::S3 s3client;
-	//K3::MessageTime from("2018-01-01-00-00-00.0");
-	K3::MessageTime from("2018-08-16-09");
-	s3client.setup(paws, envp);
+	if((from_time = std::getenv("FROM_TIME")) == NULL) {
+		printf("No from time defined.\n");
+		return -1;
+	}
 
 	if((ptopic = std::getenv("AWS_TOPIC")) == NULL) {
-		ptopic = "rmm.entity/";
+		printf("S3 source topic supplied.\n");
 	}
 	
+	signal(SIGINT,  sigterm);
+	signal(SIGTERM, sigterm);
+	K3::AwsGuard aws(paws);
+	K3::S3 s3client;
+
+	// Examples of time format
+	//K3::MessageTime from("2018-01-01-00-00-00.0");
+	//K3::MessageTime from("2018-08-22-09");
+	K3::MessageTime from(from_time);
+	s3client.setup(paws, envp);
+
 	std::stringstream dir;
 	dir << "/tmp/" << ptopic;
 	mkdir(dir.str().c_str(), 0x777);
@@ -262,7 +271,11 @@ s3_discovery(const std::string & intopic, const K3::MessageTime & infrom,
 			std::string cleaned = cleanup_name(intopic, *itor);
 			K3::MessageTime t(cleaned);
 			if(t > infrom) {
+				std::cout << "Discovered " << *itor << " and matched time window" << std::endl;
 				output.push_back(*itor);
+			}
+			else {
+				std::cout << "Discovered " << *itor << " but didn't meet specified time window" << std::endl;
 			}
 			lastkey = *itor;
 		}
