@@ -169,16 +169,6 @@ Consume::messagesSize(MessageVector &messages)
 	return rval;
 }
 
-int64_t
-Consume::messageChecksum(const char *inp, size_t len) 
-{
-	int i = 0, j = 0;
-	while(len--) {
-		i += (int)((unsigned char)inp[j++]);
-	}
-	return i;
-}
-
 int
 Consume::run(bool *loop_control)
 {

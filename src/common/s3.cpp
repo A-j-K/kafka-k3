@@ -2,9 +2,14 @@
 #include "s3.hpp" 
 
 #include <ctime>
+#include <fstream>
 #include <cstdlib>
 
+#include <aws/core/Aws.h>
 #include <aws/core/http/Scheme.h>
+#include <aws/s3/model/GetObjectRequest.h>
+#include <aws/s3/model/PutObjectRequest.h>
+#include <aws/s3/model/ListObjectsRequest.h>
 #include <aws/s3/model/CreateBucketRequest.h>
 #include <aws/core/utils/logging/LogMacros.h>
 #include <aws/s3-encryption/S3EncryptionClient.h>
@@ -66,14 +71,13 @@ S3::createS3ClientEncrypted(const std::string & in_access_key)
 		Aws::S3Encryption::StorageMethod::METADATA,
 		Aws::S3Encryption::CryptoMode::STRICT_AUTHENTICATED_ENCRYPTION);
 	if(in_access_key.size() > 0) {	
-		AWS_LOGSTREAM_INFO("K3-PREPARE", "Creating encrypted S3 client with user supplied creds");
+		AWS_LOGSTREAM_INFO("K3-PREPARE", "Creating encrypted S3 client with user supplied creds \"" << in_access_key << "\" and KMS \"" << getKmsArn() << "\"");
 		Aws::Auth::AWSCredentials creds(getAccessKey(), getSecretKey());
 		rval = Aws::MakeShared<Aws::S3Encryption::S3EncryptionClient>("k3-client-manual-auth-enc",
 			materials, crypto_configuration, creds, config);
-		
 	}
 	else {
-		AWS_LOGSTREAM_INFO("K3-PREPARE", "Creating encrypted S3 client with default creds provider");
+		AWS_LOGSTREAM_INFO("K3-PREPARE", "Creating encrypted S3 client with default creds provider and KMS \"" << getKmsArn() << "\"");
 		auto creds = Aws::MakeShared<Aws::Auth::DefaultAWSCredentialsProviderChain>("k3-creds-default-auth-enc");
 		rval = Aws::MakeShared<Aws::S3Encryption::S3EncryptionClient>("k3-client-default-auth-enc",
 			materials, crypto_configuration, creds, config);
@@ -87,7 +91,7 @@ S3::setup(json_t *pjson, char **penv)
 {
 	const char *pe;
 
-	AWS_LOGSTREAM_INFO("K3-SETUP", "Configuring");
+	AWS_LOGSTREAM_INFO("K3-S3::setup", "Configuring");
 
 	if(pjson && json_is_object(pjson)) { 
 		json_t *p;
@@ -115,10 +119,14 @@ S3::setup(json_t *pjson, char **penv)
 	if((pe = std::getenv("AWS_SECRET_KEY")) != NULL)
 		_secret_key = pe;
 
-	AWS_LOGSTREAM_INFO("K3-SETUP", "Region: " << _region);
-	AWS_LOGSTREAM_INFO("K3-SETUP", "Bucket: " << _bucket);
-	AWS_LOGSTREAM_INFO("K3-SETUP", "Access: " << _access_key);
-	AWS_LOGSTREAM_INFO("K3-SETUP", "KmsArn: " << _kms_arn);
+	// Issues using S3encryption client is a pain so rely on AWS S3 KMS
+	// at rest encryption and don't allow use to try and use encryption here
+	_kms_arn = "";
+
+	AWS_LOGSTREAM_INFO("K3-S3::setup", "Region: " << _region);
+	AWS_LOGSTREAM_INFO("K3-S3::setup", "Bucket: " << _bucket);
+	AWS_LOGSTREAM_INFO("K3-S3::setup", "Access: " << _access_key);
+	AWS_LOGSTREAM_INFO("K3-S3::setup", "KmsArn: " << _kms_arn);
 
 	_sp3client = (getKmsArn().size() == 0) ?
 		createS3Client(getAccessKey()) :
@@ -146,24 +154,147 @@ S3::put(const char *payload, size_t len,
 		{
 			request.AddMetadata(metadata_itor->first, metadata_itor->second);
 		}
-		AWS_LOGSTREAM_DEBUG("K3-PUT", 
+		AWS_LOGSTREAM_DEBUG("K3-S3::put", 
 			"Putting object to S3 bucket '" << getBucket() << "'");
 		auto outcome = _sp3client->PutObject(request);
 		if((rval = outcome.IsSuccess()) == false) {
-			AWS_LOGSTREAM_WARN("K3-PUT",
+			AWS_LOGSTREAM_WARN("K3-S3::put",
 				"Error while putting Object; ExceptionName: "
 				<< outcome.GetError().GetExceptionName()
 				<< "; Message: " << outcome.GetError().GetMessage()
 			);
 		}
 		else {
-			AWS_LOGSTREAM_DEBUG("K3-PUT", 
+			AWS_LOGSTREAM_DEBUG("K3-S3::put", 
 				"Put object to S3 bucket '" << getBucket() << "' Success");
 		}
 	}
 	else {
-		AWS_LOGSTREAM_WARN("K3-PUT", 
+		AWS_LOGSTREAM_WARN("K3-S3::put", 
 			"Failed to PUT, no S3 client defined at line " 
+			<< __LINE__ << " in file " << __FILE__);
+	}
+	return rval;
+}
+
+bool
+S3::list(const std::string & inprefix, std::vector<std::string> & outvlist, 
+	int inmaxkeys, std::string *inpfrom)
+{
+	bool rval = false;;
+	AWS_LOGSTREAM_DEBUG("K3-S3::list", "\"" << inprefix << "\"");
+	if(_sp3client.get()) {
+		Aws::S3::Model::ListObjectsRequest request;
+		request.WithBucket(getBucket());
+		if(inpfrom != NULL) {
+			Aws::String marker = *inpfrom;
+			request.SetMarker(marker);
+		}
+		if(inmaxkeys > 0) {
+			request.SetMaxKeys(inmaxkeys);
+		}
+		if(inprefix.size() > 0) {
+			request.SetPrefix(Aws::String(inprefix));
+		}
+		auto outcome = _sp3client->ListObjects(request);
+		if((rval = outcome.IsSuccess()) == false) {
+			AWS_LOGSTREAM_WARN("K3-S3::list",
+				"Error while listing bucket: \"" << getBucket() << "\""
+				<< outcome.GetError().GetExceptionName()
+				<< "; Message: " << outcome.GetError().GetMessage()
+			);
+		}
+		else {
+			Aws::Vector<Aws::S3::Model::Object> list = outcome.GetResult().GetContents();
+			for(auto const & object : list) {
+				outvlist.push_back(std::string(object.GetKey()));
+			}
+			rval = true;
+		}
+	}
+	else {
+		AWS_LOGSTREAM_WARN("K3-S3::list", 
+			"Failed to LIST, no S3 client defined at line " 
+			<< __LINE__ << " in file " << __FILE__);
+	}
+	return rval;
+}
+
+bool
+S3::get(const std::string & inkey, std::stringstream & outbuf,
+	Aws::Map<Aws::String, Aws::String> * poutmetadata)
+{
+	bool rval = false;
+	AWS_LOGSTREAM_DEBUG("K3-S3::get", "\"" << inkey << "\" to buffer");
+	if(_sp3client.get()) {
+		Aws::S3::Model::GetObjectRequest request;
+		request
+			.WithBucket(getBucket())
+			.WithKey(inkey);
+		auto outcome = _sp3client->GetObject(request);
+		if((rval = outcome.IsSuccess()) == false) {
+			AWS_LOGSTREAM_WARN("K3-S3::get",
+				"Error while getting object from key: \"" << inkey << "\" from bucket \"" << getBucket() << "\" "
+				<< outcome.GetError().GetExceptionName()
+				<< "; Message: " << outcome.GetError().GetMessage()
+			);
+		}
+		else {
+			if(poutmetadata) {
+				*poutmetadata = outcome.GetResult().GetMetadata();
+			}
+			outbuf << outcome.GetResult().GetBody().rdbuf();	
+			rval = true;
+		}
+	}
+	else {
+		AWS_LOGSTREAM_WARN("K3-S3::get", 
+			"Failed to GET, no S3 client defined at line " 
+			<< __LINE__ << " in file " << __FILE__);
+	}
+	return rval;
+}
+
+bool 
+S3::get(const std::string & inkey, const std::string & infilename,
+	Aws::Map<Aws::String, Aws::String> * poutmetadata)
+{
+	bool rval = false;
+	AWS_LOGSTREAM_DEBUG("K3-S3::get", "\"" << inkey << "\" to local file \"" << infilename << "\"");
+	if(_sp3client.get()) {
+		Aws::S3::Model::GetObjectRequest request;
+		request
+			.WithBucket(getBucket())
+			.WithKey(inkey);
+		auto outcome = _sp3client->GetObject(request);
+		if((rval = outcome.IsSuccess()) == false) {
+			AWS_LOGSTREAM_WARN("K3-S3::get",
+				"Error while getting object from key: \"" << inkey << "\" from bucket \"" << getBucket() << "\" " 
+				<< outcome.GetError().GetExceptionName()
+				<< "; Message: " << outcome.GetError().GetMessage()
+			);
+		}
+		else {
+			Aws::OFStream f;
+			if(poutmetadata) {
+				*poutmetadata = outcome.GetResult().GetMetadata();
+			}
+			f.open(infilename.c_str(), std::ios::out | std::ios::binary | std::ios::trunc);
+			if(f.is_open()) {
+				f << outcome.GetResult().GetBody().rdbuf();
+				f.close();
+				rval = true;
+			}
+			else {
+				AWS_LOGSTREAM_WARN("K3-S3::get",
+					"Error trying to open \"" << infilename << "\" to save key \"" << inkey << "\""
+				);
+			}
+		}
+	}
+	else {
+		AWS_LOGSTREAM_WARN("K3-S3::get", 
+			"Failed to GET, no S3 client defined at line " 
 			<< __LINE__ << " in file " << __FILE__);
 	}
 	return rval;

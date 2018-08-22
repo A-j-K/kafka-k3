@@ -1,3 +1,14 @@
+1.16.1
+-- Downgraded AWS SDK to version 1.4.75  Somewhere along the way they have
+   changed the ctor prototype for the encyrpted S3 client and the way the
+   materials shared pointer is passed which breaks the compile/build. I don't
+   have time to fix annoying things like this at the moment so stay with an
+   older version until I have time to figure out what changed and what the
+   fix is.
+
+1.16
+-- Update AWS SDK to version 1.4.93
+
 1.15
 -- Added automated discovery for topics. Thanks Georgi :)
 

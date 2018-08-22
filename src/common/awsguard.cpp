@@ -1,4 +1,5 @@
 
+#include <cstdlib>
 #include <aws/core/Aws.h>
 #include <aws/core/utils/logging/LogMacros.h>
 #include <aws/core/utils/logging/AWSLogging.h>
@@ -27,35 +28,45 @@ AwsGuard::AwsGuard()
 AwsGuard::AwsGuard(json_t *inp) 
 {
 	json_t *p;
+	const char *pe;
+	std::string s;
 	Aws::Utils::Logging::LogLevel loglevel = Aws::Utils::Logging::LogLevel::Info;
 
-	_options.loggingOptions.logLevel = Aws::Utils::Logging::LogLevel::Off;
+	_options.loggingOptions.logLevel = Aws::Utils::Logging::LogLevel::Info;
 	Aws::InitAPI(_options);
 
 	if((p = json_object_get(inp, "loglevel")) != NULL ) {
 		if(json_is_string(p)) {
-			std::string s(json_string_value(p));
-			if(s == "off") {
-				loglevel = Aws::Utils::Logging::LogLevel::Off;
-			}
-			else if(s == "fatal") {
-				loglevel = Aws::Utils::Logging::LogLevel::Fatal;
-			}
-			else if(s == "error") {
-				loglevel = Aws::Utils::Logging::LogLevel::Error;
-			}
-			else if(s == "warn") {
-				loglevel = Aws::Utils::Logging::LogLevel::Warn;
-			}
-			else if(s == "info") {
-				loglevel = Aws::Utils::Logging::LogLevel::Info;
-			}
-			else if(s == "debug") {
-				loglevel = Aws::Utils::Logging::LogLevel::Debug;
-			}
-			else if(s == "trace") {
-				loglevel = Aws::Utils::Logging::LogLevel::Trace;
-			}
+			s = json_string_value(p);
+		}
+	}
+
+	// Allow ENV var to override
+	if((pe = std::getenv("AWS_LOGLEVEL")) != NULL) {
+		s = pe;
+	}
+
+	if(s.size() > 0) {
+		if(s == "off") {
+			loglevel = Aws::Utils::Logging::LogLevel::Off;
+		}
+		else if(s == "fatal") {
+			loglevel = Aws::Utils::Logging::LogLevel::Fatal;
+		}
+		else if(s == "error") {
+			loglevel = Aws::Utils::Logging::LogLevel::Error;
+		}
+		else if(s == "warn") {
+			loglevel = Aws::Utils::Logging::LogLevel::Warn;
+		}
+		else if(s == "info") {
+			loglevel = Aws::Utils::Logging::LogLevel::Info;
+		}
+		else if(s == "debug") {
+			loglevel = Aws::Utils::Logging::LogLevel::Debug;
+		}
+		else if(s == "trace") {
+			loglevel = Aws::Utils::Logging::LogLevel::Trace;
 		}
 	}
 
@@ -68,6 +79,7 @@ AwsGuard::AwsGuard(json_t *inp)
 
 AwsGuard::~AwsGuard()
 {
+	Aws::Utils::Logging::ShutdownAWSLogging();
 	Aws::ShutdownAPI(_options);
 }
 
